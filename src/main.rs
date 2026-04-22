@@ -27,8 +27,8 @@ fn run(cli: Cli) -> Result<()> {
         Command::Introspect => sn::cli::introspect::run(),
         Command::Table { sub } => match sub {
             TableSub::List(args) => sn::cli::table::list(&global, args),
-            TableSub::Get(_)
-            | TableSub::Create(_)
+            TableSub::Get(args) => sn::cli::table::get(&global, args),
+            TableSub::Create(_)
             | TableSub::Update(_)
             | TableSub::Replace(_)
             | TableSub::Delete(_) => Err(Error::Usage("table subcommand not yet wired".into())),
