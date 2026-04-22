@@ -29,10 +29,9 @@ fn run(cli: Cli) -> Result<()> {
             TableSub::List(args) => sn::cli::table::list(&global, args),
             TableSub::Get(args) => sn::cli::table::get(&global, args),
             TableSub::Create(args) => sn::cli::table::create(&global, args),
+            TableSub::Update(args) => sn::cli::table::update(&global, args),
+            TableSub::Replace(args) => sn::cli::table::replace(&global, args),
             TableSub::Delete(args) => sn::cli::table::delete(&global, args),
-            TableSub::Update(_) | TableSub::Replace(_) => {
-                Err(Error::Usage("table subcommand not yet wired".into()))
-            }
         },
         _ => Err(Error::Usage("command not implemented yet".into())),
     }
