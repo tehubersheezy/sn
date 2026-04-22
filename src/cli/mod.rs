@@ -2,6 +2,7 @@ pub mod auth;
 pub mod init;
 pub mod introspect;
 pub mod profile;
+pub mod schema;
 pub mod table;
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -297,10 +298,27 @@ pub enum SchemaSub {
 }
 
 #[derive(clap::Args, Debug, Default)]
-pub struct SchemaTablesArgs {/* expanded in Task 21 */}
-#[derive(clap::Args, Debug, Default)]
+pub struct SchemaTablesArgs {
+    #[arg(long)]
+    pub filter: Option<String>,
+    #[arg(long)]
+    pub reference_only: bool,
+}
+#[derive(clap::Args, Debug)]
 pub struct SchemaColumnsArgs {
     pub table: String,
+    #[arg(long)]
+    pub filter: Option<String>,
+    #[arg(long, value_name = "TYPE")]
+    pub r#type: Option<String>,
+    #[arg(long)]
+    pub mandatory: bool,
+    #[arg(long)]
+    pub writable: bool,
+    #[arg(long)]
+    pub choices_only: bool,
+    #[arg(long)]
+    pub references_only: bool,
 }
 #[derive(clap::Args, Debug, Default)]
 pub struct SchemaChoicesArgs {
