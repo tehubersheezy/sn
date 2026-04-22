@@ -1,5 +1,7 @@
 use clap::Parser;
-use sn::cli::{AppSub, AtfSub, AuthSub, Cli, Command, SchemaSub, TableSub, UpdateSetSub};
+use sn::cli::{
+    AppSub, AtfSub, AuthSub, Cli, Command, SchemaSub, ScoresSub, TableSub, UpdateSetSub,
+};
 use sn::error::Result;
 use sn::output::emit_error;
 use std::io;
@@ -58,6 +60,12 @@ fn run(cli: Cli) -> Result<()> {
         Command::Atf { sub } => match sub {
             AtfSub::Run(args) => sn::cli::atf::run(&global, args),
             AtfSub::Results(args) => sn::cli::atf::results(&global, args),
+        },
+        Command::Aggregate(args) => sn::cli::aggregate::run(&global, args),
+        Command::Scores { sub } => match sub {
+            ScoresSub::List(args) => sn::cli::scores::list(&global, *args),
+            ScoresSub::Favorite(args) => sn::cli::scores::favorite(&global, args),
+            ScoresSub::Unfavorite(args) => sn::cli::scores::unfavorite(&global, args),
         },
     }
 }

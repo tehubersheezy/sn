@@ -95,7 +95,7 @@ async fn update_set_create_posts_with_name_param() {
             .env("SN_PASSWORD", "p")
             .args([
                 "--compact",
-                "update-set",
+                "updateset",
                 "create",
                 "--name",
                 "My Update Set",
@@ -141,6 +141,72 @@ async fn atf_run_posts_with_suite_name_param() {
         let stdout = String::from_utf8(out.get_output().stdout.clone()).unwrap();
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["test_suite_name"], "MySuite");
+    })
+    .await
+    .unwrap();
+}
+
+// ── aggregate ────────────────────────────────────────────────────────────────
+
+#[tokio::test(flavor = "current_thread")]
+async fn aggregate_count_incident() {
+    let server = wiremock::MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/now/stats/incident"))
+        .and(query_param("sysparm_count", "true"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "result": {
+                "stats": {
+                    "count": "42"
+                }
+            }
+        })))
+        .mount(&server)
+        .await;
+    let server_uri = server.uri();
+    tokio::task::spawn_blocking(move || {
+        let mut cmd = Command::cargo_bin("sn").unwrap();
+        let out = cmd
+            .env("SN_INSTANCE", &server_uri)
+            .env("SN_USERNAME", "u")
+            .env("SN_PASSWORD", "p")
+            .args(["--compact", "aggregate", "incident", "--count"])
+            .assert()
+            .success();
+        let stdout = String::from_utf8(out.get_output().stdout.clone()).unwrap();
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["stats"]["count"], "42");
+    })
+    .await
+    .unwrap();
+}
+
+// ── scores list ───────────────────────────────────────────────────────────────
+
+#[tokio::test(flavor = "current_thread")]
+async fn scores_list_per_page() {
+    let server = wiremock::MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/now/pa/scorecards"))
+        .and(query_param("sysparm_per_page", "5"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "result": []
+        })))
+        .mount(&server)
+        .await;
+    let server_uri = server.uri();
+    tokio::task::spawn_blocking(move || {
+        let mut cmd = Command::cargo_bin("sn").unwrap();
+        let out = cmd
+            .env("SN_INSTANCE", &server_uri)
+            .env("SN_USERNAME", "u")
+            .env("SN_PASSWORD", "p")
+            .args(["--compact", "scores", "list", "--per-page", "5"])
+            .assert()
+            .success();
+        let stdout = String::from_utf8(out.get_output().stdout.clone()).unwrap();
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert!(v.is_array());
     })
     .await
     .unwrap();
