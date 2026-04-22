@@ -195,10 +195,20 @@ impl From<DisplayValueArg> for crate::query::DisplayValue {
         }
     }
 }
-#[derive(clap::Args, Debug, Default)]
+#[derive(clap::Args, Debug)]
 pub struct TableGetArgs {
     pub table: String,
     pub sys_id: String,
+    #[arg(long, alias = "sysparm-fields")]
+    pub fields: Option<String>,
+    #[arg(long, alias = "sysparm-display-value", value_enum)]
+    pub display_value: Option<DisplayValueArg>,
+    #[arg(long, alias = "sysparm-exclude-reference-link")]
+    pub exclude_reference_link: bool,
+    #[arg(long, alias = "sysparm-view")]
+    pub view: Option<String>,
+    #[arg(long, alias = "sysparm-query-no-domain")]
+    pub query_no_domain: bool,
 }
 #[derive(clap::Args, Debug, Default)]
 pub struct TableCreateArgs {

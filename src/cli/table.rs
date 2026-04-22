@@ -1,4 +1,4 @@
-use crate::cli::{GlobalFlags, OutputMode, TableListArgs};
+use crate::cli::{GlobalFlags, OutputMode, TableGetArgs, TableListArgs};
 use crate::client::{Client, RetryPolicy};
 use crate::config::{
     config_path, credentials_path, load_config_from, load_credentials_from, resolve_profile,
@@ -6,7 +6,7 @@ use crate::config::{
 };
 use crate::error::{Error, Result};
 use crate::output::{emit_value, Format, ResolvedFormat};
-use crate::query::ListQuery;
+use crate::query::{GetQuery, ListQuery};
 use serde_json::Value;
 use std::io;
 
@@ -95,4 +95,23 @@ pub(crate) fn unwrap_or_raw(v: Value, mode: OutputMode) -> Value {
         OutputMode::Raw => v,
         OutputMode::Default => v.get("result").cloned().unwrap_or(v),
     }
+}
+
+pub fn get(global: &GlobalFlags, args: TableGetArgs) -> Result<()> {
+    let profile = build_profile(global)?;
+    let client = Client::builder()
+        .retry(retry_policy(global.no_retry))
+        .build(&profile)?;
+    let q = GetQuery {
+        fields: args.fields,
+        display_value: args.display_value.map(Into::into),
+        exclude_reference_link: bool_opt(args.exclude_reference_link),
+        view: args.view,
+        query_no_domain: bool_opt(args.query_no_domain),
+    };
+    let path = format!("/api/now/table/{}/{}", args.table, args.sys_id);
+    let resp = client.get(&path, &q.to_pairs())?;
+    let out = unwrap_or_raw(resp, global.output);
+    emit_value(io::stdout().lock(), &out, format_from_flags(global))
+        .map_err(|e| Error::Usage(format!("stdout: {e}")))
 }
