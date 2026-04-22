@@ -1,5 +1,5 @@
 use clap::Parser;
-use sn::cli::{AuthSub, Cli, Command};
+use sn::cli::{AuthSub, Cli, Command, TableSub};
 use sn::error::{Error, Result};
 use sn::output::emit_error;
 use std::io;
@@ -25,6 +25,14 @@ fn run(cli: Cli) -> Result<()> {
         },
         Command::Profile { sub } => sn::cli::profile::run(sub),
         Command::Introspect => sn::cli::introspect::run(),
+        Command::Table { sub } => match sub {
+            TableSub::List(args) => sn::cli::table::list(&global, args),
+            TableSub::Get(_)
+            | TableSub::Create(_)
+            | TableSub::Update(_)
+            | TableSub::Replace(_)
+            | TableSub::Delete(_) => Err(Error::Usage("table subcommand not yet wired".into())),
+        },
         _ => Err(Error::Usage("command not implemented yet".into())),
     }
 }

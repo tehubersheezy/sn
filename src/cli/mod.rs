@@ -2,6 +2,7 @@ pub mod auth;
 pub mod init;
 pub mod introspect;
 pub mod profile;
+pub mod table;
 
 use clap::{Parser, Subcommand, ValueEnum};
 
@@ -129,9 +130,70 @@ pub enum TableSub {
     Delete(TableDeleteArgs),
 }
 
-#[derive(clap::Args, Debug, Default)]
+#[derive(clap::Args, Debug)]
 pub struct TableListArgs {
+    /// Table name (e.g. `incident`).
     pub table: String,
+    /// Encoded query, e.g. `active=true^priority=1`.
+    #[arg(long, alias = "sysparm-query")]
+    pub query: Option<String>,
+    /// Comma-separated fields to return.
+    #[arg(long, alias = "sysparm-fields")]
+    pub fields: Option<String>,
+    /// Records per API call (default 1000).
+    #[arg(long, alias = "limit", alias = "sysparm-limit", default_value_t = 1000)]
+    pub page_size: u32,
+    /// Starting offset for manual pagination (ignored with --all).
+    #[arg(long, alias = "sysparm-offset")]
+    pub offset: Option<u32>,
+    /// Resolve reference/choice fields: false (default), true, or all.
+    #[arg(long, alias = "sysparm-display-value", value_enum)]
+    pub display_value: Option<DisplayValueArg>,
+    /// Strip reference-link URLs from reference fields.
+    #[arg(long, alias = "sysparm-exclude-reference-link")]
+    pub exclude_reference_link: bool,
+    /// Skip X-Total-Count calculation.
+    #[arg(long, alias = "sysparm-suppress-pagination-header")]
+    pub suppress_pagination_header: bool,
+    /// Apply a named form/list view.
+    #[arg(long, alias = "sysparm-view")]
+    pub view: Option<String>,
+    /// Query category for index selection.
+    #[arg(long, alias = "sysparm-query-category")]
+    pub query_category: Option<String>,
+    /// Cross-domain access if authorized.
+    #[arg(long, alias = "sysparm-query-no-domain")]
+    pub query_no_domain: bool,
+    /// Skip the count query.
+    #[arg(long, alias = "sysparm-no-count")]
+    pub no_count: bool,
+    /// Auto-paginate: stream every matching record (JSONL unless --array).
+    #[arg(long)]
+    pub all: bool,
+    /// With --all, buffer into a single JSON array instead of JSONL.
+    #[arg(long, requires = "all")]
+    pub array: bool,
+    /// Cap total records returned (default 100000; 0 = unlimited).
+    #[arg(long, default_value_t = 100_000)]
+    pub max_records: u32,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+#[value(rename_all = "lowercase")]
+pub enum DisplayValueArg {
+    True,
+    False,
+    All,
+}
+
+impl From<DisplayValueArg> for crate::query::DisplayValue {
+    fn from(v: DisplayValueArg) -> Self {
+        match v {
+            DisplayValueArg::True => crate::query::DisplayValue::True,
+            DisplayValueArg::False => crate::query::DisplayValue::False,
+            DisplayValueArg::All => crate::query::DisplayValue::All,
+        }
+    }
 }
 #[derive(clap::Args, Debug, Default)]
 pub struct TableGetArgs {
