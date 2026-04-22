@@ -1,6 +1,6 @@
 use clap::Parser;
-use sn::cli::{AuthSub, Cli, Command, TableSub};
-use sn::error::{Error, Result};
+use sn::cli::{AuthSub, Cli, Command, SchemaSub, TableSub};
+use sn::error::Result;
 use sn::output::emit_error;
 use std::io;
 use std::process::ExitCode;
@@ -33,6 +33,10 @@ fn run(cli: Cli) -> Result<()> {
             TableSub::Replace(args) => sn::cli::table::replace(&global, args),
             TableSub::Delete(args) => sn::cli::table::delete(&global, args),
         },
-        _ => Err(Error::Usage("command not implemented yet".into())),
+        Command::Schema { sub } => match sub {
+            SchemaSub::Tables(args) => sn::cli::schema::tables(&global, args),
+            SchemaSub::Columns(args) => sn::cli::schema::columns(&global, args),
+            SchemaSub::Choices(args) => sn::cli::schema::choices(&global, args),
+        },
     }
 }
