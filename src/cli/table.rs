@@ -13,7 +13,7 @@ use crate::output::{emit_value, Format, ResolvedFormat};
 use crate::query::{DeleteQuery, GetQuery, ListQuery, WriteQuery};
 use is_terminal::IsTerminal;
 use serde_json::Value;
-use std::io;
+use std::io::{self, Write};
 
 pub fn list(global: &GlobalFlags, args: TableListArgs) -> Result<()> {
     let profile = build_profile(global)?;
@@ -21,9 +21,50 @@ pub fn list(global: &GlobalFlags, args: TableListArgs) -> Result<()> {
     let client = Client::builder().retry(retry).build(&profile)?;
 
     if args.all {
-        return Err(Error::Usage(
-            "--all not yet implemented (lands in Task 20)".into(),
-        ));
+        let q = ListQuery {
+            query: args.query.clone(),
+            fields: args.fields.clone(),
+            page_size: Some(args.page_size),
+            offset: None, // ignored with --all
+            display_value: args.display_value.map(Into::into),
+            exclude_reference_link: bool_opt(args.exclude_reference_link),
+            suppress_pagination_header: bool_opt(args.suppress_pagination_header),
+            view: args.view.clone(),
+            query_category: args.query_category.clone(),
+            query_no_domain: bool_opt(args.query_no_domain),
+            no_count: bool_opt(args.no_count),
+        };
+        let path = format!("/api/now/table/{}", args.table);
+        let cap = if args.max_records == 0 {
+            None
+        } else {
+            Some(args.max_records)
+        };
+        let it = client.paginate(&path, &q.to_pairs(), cap);
+
+        if args.array {
+            let mut out = Vec::new();
+            for r in it {
+                out.push(r?);
+            }
+            emit_value(
+                io::stdout().lock(),
+                &Value::Array(out),
+                format_from_flags(global),
+            )
+            .map_err(|e| Error::Usage(format!("stdout: {e}")))?;
+        } else {
+            let mut stdout = io::stdout().lock();
+            for r in it {
+                let v = r?;
+                serde_json::to_writer(&mut stdout, &v)
+                    .map_err(|e| Error::Usage(format!("stdout: {e}")))?;
+                stdout
+                    .write_all(b"\n")
+                    .map_err(|e| Error::Usage(format!("stdout: {e}")))?;
+            }
+        }
+        return Ok(());
     }
 
     let q = ListQuery {

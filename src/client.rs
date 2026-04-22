@@ -24,11 +24,11 @@ impl Default for RetryPolicy {
 }
 
 pub struct Client {
-    http: ReqwestClient,
-    base_url: String,
-    username: String,
-    password: String,
-    retry: RetryPolicy,
+    pub(crate) http: ReqwestClient,
+    pub(crate) base_url: String,
+    pub(crate) username: String,
+    pub(crate) password: String,
+    pub(crate) retry: RetryPolicy,
 }
 
 pub struct ClientBuilder {
@@ -240,6 +240,161 @@ impl Client {
                 .query(&query)
                 .send()
         })
+    }
+}
+
+impl Client {
+    /// Stream records from a paginated list endpoint, following Link: rel="next" headers.
+    pub fn paginate(
+        &self,
+        initial_path: &str,
+        initial_query: &[(String, String)],
+        max_records: Option<u32>,
+    ) -> Paginator<'_> {
+        Paginator::new(
+            self,
+            initial_path.to_string(),
+            initial_query.to_vec(),
+            max_records,
+        )
+    }
+}
+
+pub struct Paginator<'a> {
+    client: &'a Client,
+    next_url: Option<String>,
+    next_query: Vec<(String, String)>,
+    buffer: std::collections::VecDeque<Value>,
+    emitted: u32,
+    cap: Option<u32>,
+    finished: bool,
+}
+
+impl<'a> Paginator<'a> {
+    fn new(
+        client: &'a Client,
+        path: String,
+        query: Vec<(String, String)>,
+        cap: Option<u32>,
+    ) -> Self {
+        Self {
+            client,
+            next_url: Some(format!("{}{path}", client.base_url)),
+            next_query: query,
+            buffer: std::collections::VecDeque::new(),
+            emitted: 0,
+            cap,
+            finished: false,
+        }
+    }
+
+    fn fetch_next_page(&mut self) -> Result<()> {
+        let Some(url) = self.next_url.take() else {
+            self.finished = true;
+            return Ok(());
+        };
+        let req = self
+            .client
+            .http
+            .request(Method::GET, &url)
+            .basic_auth(&self.client.username, Some(&self.client.password))
+            .query(&self.next_query);
+        let resp =
+            execute_request_with_retry(self.client.retry, || req.try_clone().unwrap().send())?;
+        let status = resp.status();
+        let tx = transaction_id(&resp);
+        let link = resp
+            .headers()
+            .get("Link")
+            .and_then(|v| v.to_str().ok())
+            .map(ToString::to_string);
+        if !status.is_success() {
+            return Err(from_http(status, tx, resp));
+        }
+        let body: Value = resp
+            .json()
+            .map_err(|e| Error::Transport(format!("parse response: {e}")))?;
+        if let Value::Array(records) = body.get("result").cloned().unwrap_or(Value::Array(vec![])) {
+            for r in records {
+                self.buffer.push_back(r);
+            }
+        }
+        self.next_query.clear(); // next link carries all params
+        self.next_url = link.and_then(parse_next_link);
+        if self.next_url.is_none() {
+            self.finished = true;
+        }
+        Ok(())
+    }
+}
+
+fn parse_next_link(header: String) -> Option<String> {
+    // ServiceNow Link: <...>;rel="next", <...>;rel="first", ...
+    for part in header.split(',') {
+        let part = part.trim();
+        if let Some((url_part, rel_part)) = part.split_once(';') {
+            let rel = rel_part.trim();
+            if rel.contains("rel=\"next\"") {
+                let u = url_part
+                    .trim()
+                    .trim_start_matches('<')
+                    .trim_end_matches('>');
+                return Some(u.to_string());
+            }
+        }
+    }
+    None
+}
+
+impl<'a> Iterator for Paginator<'a> {
+    type Item = Result<Value>;
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(cap) = self.cap {
+            if cap != 0 && self.emitted >= cap {
+                return None;
+            }
+        }
+        if self.buffer.is_empty() && !self.finished {
+            if let Err(e) = self.fetch_next_page() {
+                self.finished = true;
+                return Some(Err(e));
+            }
+        }
+        match self.buffer.pop_front() {
+            Some(v) => {
+                self.emitted += 1;
+                Some(Ok(v))
+            }
+            None => None,
+        }
+    }
+}
+
+fn execute_request_with_retry<F>(
+    policy: RetryPolicy,
+    mut send: F,
+) -> std::result::Result<Response, Error>
+where
+    F: FnMut() -> std::result::Result<Response, reqwest::Error>,
+{
+    let mut attempt = 0u32;
+    let mut backoff = policy.initial_backoff;
+    loop {
+        attempt += 1;
+        match send() {
+            Ok(resp) => {
+                let status = resp.status();
+                let retryable =
+                    policy.enabled && should_retry(status) && attempt < policy.max_attempts;
+                if !status.is_success() && retryable {
+                    std::thread::sleep(jittered(backoff));
+                    backoff = backoff.saturating_mul(2);
+                    continue;
+                }
+                return Ok(resp);
+            }
+            Err(e) => return Err(Error::Transport(format!("{e}"))),
+        }
     }
 }
 
