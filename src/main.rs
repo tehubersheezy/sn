@@ -1,5 +1,5 @@
 use clap::Parser;
-use sn::cli::{AuthSub, Cli, Command, SchemaSub, TableSub};
+use sn::cli::{AppSub, AtfSub, AuthSub, Cli, Command, SchemaSub, TableSub, UpdateSetSub};
 use sn::error::Result;
 use sn::output::emit_error;
 use std::io;
@@ -38,6 +38,26 @@ fn run(cli: Cli) -> Result<()> {
             SchemaSub::Tables(args) => sn::cli::schema::tables(&global, args),
             SchemaSub::Columns(args) => sn::cli::schema::columns(&global, args),
             SchemaSub::Choices(args) => sn::cli::schema::choices(&global, args),
+        },
+        Command::Progress(args) => sn::cli::progress::run(&global, args),
+        Command::App { sub } => match sub {
+            AppSub::Install(args) => sn::cli::app::install(&global, args),
+            AppSub::Publish(args) => sn::cli::app::publish(&global, args),
+            AppSub::Rollback(args) => sn::cli::app::rollback(&global, args),
+        },
+        Command::UpdateSet { sub } => match sub {
+            UpdateSetSub::Create(args) => sn::cli::update_set::create(&global, args),
+            UpdateSetSub::Retrieve(args) => sn::cli::update_set::retrieve(&global, args),
+            UpdateSetSub::Preview(args) => sn::cli::update_set::preview(&global, args),
+            UpdateSetSub::Commit(args) => sn::cli::update_set::commit(&global, args),
+            UpdateSetSub::CommitMultiple(args) => {
+                sn::cli::update_set::commit_multiple(&global, args)
+            }
+            UpdateSetSub::BackOut(args) => sn::cli::update_set::back_out(&global, args),
+        },
+        Command::Atf { sub } => match sub {
+            AtfSub::Run(args) => sn::cli::atf::run(&global, args),
+            AtfSub::Results(args) => sn::cli::atf::results(&global, args),
         },
     }
 }

@@ -1,14 +1,22 @@
+pub mod app;
+pub mod atf;
 pub mod auth;
 pub mod init;
 pub mod introspect;
 pub mod profile;
+pub mod progress;
 pub mod schema;
 pub mod table;
+pub mod update_set;
 
 use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser, Debug)]
-#[command(name = "sn", version, about = "ServiceNow CLI (Table API + schema)")]
+#[command(
+    name = "sn",
+    version,
+    about = "ServiceNow CLI (Table API + schema + CICD)"
+)]
 pub struct Cli {
     #[command(flatten)]
     pub global: GlobalFlags,
@@ -86,6 +94,23 @@ pub enum Command {
     },
     /// Dump the full command tree as JSON for agent/MCP generation.
     Introspect,
+    /// Get pipeline/deployment progress by ID.
+    Progress(ProgressArgs),
+    /// App repository operations (install, publish, rollback).
+    App {
+        #[command(subcommand)]
+        sub: AppSub,
+    },
+    /// Update Set lifecycle operations.
+    UpdateSet {
+        #[command(subcommand)]
+        sub: UpdateSetSub,
+    },
+    /// Automated Test Framework operations.
+    Atf {
+        #[command(subcommand)]
+        sub: AtfSub,
+    },
 }
 
 #[derive(clap::Args, Debug)]
@@ -324,6 +349,195 @@ pub struct SchemaColumnsArgs {
 pub struct SchemaChoicesArgs {
     pub table: String,
     pub field: String,
+}
+
+// ── Progress ─────────────────────────────────────────────────────────────────
+
+#[derive(clap::Args, Debug)]
+pub struct ProgressArgs {
+    /// Progress ID returned by app/update-set operations.
+    pub progress_id: String,
+}
+
+// ── App repo ─────────────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum AppSub {
+    /// Install an application from the app repository.
+    Install(AppInstallArgs),
+    /// Publish an application to the app repository.
+    Publish(AppPublishArgs),
+    /// Roll back an application to a previous version.
+    Rollback(AppRollbackArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct AppInstallArgs {
+    /// sys_id of the application.
+    #[arg(long)]
+    pub sys_id: Option<String>,
+    /// Application scope (e.g. `x_acme_myapp`).
+    #[arg(long)]
+    pub scope: Option<String>,
+    /// Version to install.
+    #[arg(long)]
+    pub version: Option<String>,
+    /// Automatically upgrade the base application if needed.
+    #[arg(long)]
+    pub auto_upgrade_base_app: bool,
+    /// Version of the base application to use.
+    #[arg(long)]
+    pub base_app_version: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct AppPublishArgs {
+    /// sys_id of the application.
+    #[arg(long)]
+    pub sys_id: Option<String>,
+    /// Application scope (e.g. `x_acme_myapp`).
+    #[arg(long)]
+    pub scope: Option<String>,
+    /// Version to publish.
+    #[arg(long)]
+    pub version: Option<String>,
+    /// Developer notes for this publish.
+    #[arg(long)]
+    pub dev_notes: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct AppRollbackArgs {
+    /// sys_id of the application.
+    #[arg(long)]
+    pub sys_id: Option<String>,
+    /// Application scope (e.g. `x_acme_myapp`).
+    #[arg(long)]
+    pub scope: Option<String>,
+    /// Version to roll back to (required).
+    #[arg(long, required = true)]
+    pub version: String,
+}
+
+// ── Update Set ───────────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum UpdateSetSub {
+    /// Create a new Update Set.
+    Create(UpdateSetCreateArgs),
+    /// Retrieve a remote Update Set into this instance.
+    Retrieve(UpdateSetRetrieveArgs),
+    /// Preview a retrieved remote Update Set.
+    Preview(UpdateSetIdArg),
+    /// Commit a previewed remote Update Set.
+    Commit(UpdateSetIdArg),
+    /// Commit multiple remote Update Sets at once.
+    CommitMultiple(UpdateSetCommitMultipleArgs),
+    /// Back out (undo) an applied Update Set.
+    BackOut(UpdateSetBackOutArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct UpdateSetCreateArgs {
+    /// Name for the new Update Set (required).
+    #[arg(long, required = true)]
+    pub name: String,
+    /// Optional description.
+    #[arg(long)]
+    pub description: Option<String>,
+    /// sys_id to assign to the new Update Set.
+    #[arg(long)]
+    pub sys_id: Option<String>,
+    /// Application scope.
+    #[arg(long)]
+    pub scope: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct UpdateSetRetrieveArgs {
+    /// sys_id of the Update Set to retrieve (required).
+    #[arg(long, required = true)]
+    pub update_set_id: String,
+    /// sys_id of the source record.
+    #[arg(long)]
+    pub source_id: Option<String>,
+    /// Instance ID of the source ServiceNow instance.
+    #[arg(long)]
+    pub source_instance_id: Option<String>,
+    /// Automatically preview after retrieval.
+    #[arg(long)]
+    pub auto_preview: bool,
+    /// Clean up retrieved set after preview/commit.
+    #[arg(long)]
+    pub cleanup_retrieved: bool,
+}
+
+/// Shared arg struct for preview and commit (single path param).
+#[derive(clap::Args, Debug)]
+pub struct UpdateSetIdArg {
+    /// Remote Update Set sys_id.
+    pub remote_update_set_id: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct UpdateSetCommitMultipleArgs {
+    /// Comma-separated list of remote Update Set sys_ids.
+    #[arg(long, required = true)]
+    pub ids: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct UpdateSetBackOutArgs {
+    /// sys_id of the Update Set to back out (required).
+    #[arg(long, required = true)]
+    pub update_set_id: String,
+    /// Also roll back any application installs included in the set.
+    #[arg(long)]
+    pub rollback_installs: bool,
+}
+
+// ── ATF ──────────────────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum AtfSub {
+    /// Run an ATF test suite.
+    Run(AtfRunArgs),
+    /// Get results for an ATF test suite run.
+    Results(AtfResultsArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct AtfRunArgs {
+    /// sys_id of the test suite.
+    #[arg(long)]
+    pub suite_id: Option<String>,
+    /// Name of the test suite.
+    #[arg(long)]
+    pub suite_name: Option<String>,
+    /// Browser name (e.g. `chrome`).
+    #[arg(long)]
+    pub browser_name: Option<String>,
+    /// Browser version.
+    #[arg(long)]
+    pub browser_version: Option<String>,
+    /// OS name.
+    #[arg(long)]
+    pub os_name: Option<String>,
+    /// OS version.
+    #[arg(long)]
+    pub os_version: Option<String>,
+    /// Run tests in cloud browser.
+    #[arg(long)]
+    pub run_in_cloud: bool,
+    /// Record performance metrics during the run.
+    #[arg(long)]
+    pub performance_run: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct AtfResultsArgs {
+    /// Test suite result sys_id.
+    pub result_id: String,
 }
 
 #[cfg(test)]
