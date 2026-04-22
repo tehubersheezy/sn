@@ -8,6 +8,10 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/ibrahimsafah/sn"
 default-run = "sn"
 
+[lib]
+name = "sn"
+path = "src/lib.rs"
+
 [[bin]]
 name = "sn"
 path = "src/main.rs"
