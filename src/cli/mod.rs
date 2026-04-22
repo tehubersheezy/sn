@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod init;
 
 use clap::{Parser, Subcommand, ValueEnum};

@@ -1,5 +1,5 @@
 use clap::Parser;
-use sn::cli::{Cli, Command};
+use sn::cli::{AuthSub, Cli, Command};
 use sn::error::{Error, Result};
 use sn::output::emit_error;
 use std::io;
@@ -17,8 +17,12 @@ fn main() -> ExitCode {
 }
 
 fn run(cli: Cli) -> Result<()> {
-    match cli.command {
+    let Cli { global, command } = cli;
+    match command {
         Command::Init(args) => sn::cli::init::run(args),
+        Command::Auth { sub } => match sub {
+            AuthSub::Test => sn::cli::auth::test(&global),
+        },
         Command::Introspect => {
             // Filled in by Task 24.
             println!("{{\"todo\": \"introspect\"}}");
