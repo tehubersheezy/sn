@@ -52,6 +52,23 @@ pub fn retrieve(global: &GlobalFlags, args: UpdateSetRetrieveArgs) -> Result<()>
         &serde_json::json!({}),
     )?;
     let out = unwrap_or_raw(resp, global.output);
+    if args.wait {
+        if let Some(progress_id) = out
+            .get("links")
+            .and_then(|l| l.get("progress"))
+            .and_then(|p| p.get("id"))
+            .and_then(|id| id.as_str())
+        {
+            let final_result =
+                crate::cli::progress::wait_for_completion(&client, progress_id, global)?;
+            return emit_value(
+                io::stdout().lock(),
+                &final_result,
+                format_from_flags(global),
+            )
+            .map_err(|e| Error::Usage(format!("stdout: {e}")));
+        }
+    }
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
         .map_err(|e| Error::Usage(format!("stdout: {e}")))
 }
@@ -65,6 +82,23 @@ pub fn preview(global: &GlobalFlags, args: UpdateSetIdArg) -> Result<()> {
     );
     let resp = client.post(&path, &[], &serde_json::json!({}))?;
     let out = unwrap_or_raw(resp, global.output);
+    if args.wait {
+        if let Some(progress_id) = out
+            .get("links")
+            .and_then(|l| l.get("progress"))
+            .and_then(|p| p.get("id"))
+            .and_then(|id| id.as_str())
+        {
+            let final_result =
+                crate::cli::progress::wait_for_completion(&client, progress_id, global)?;
+            return emit_value(
+                io::stdout().lock(),
+                &final_result,
+                format_from_flags(global),
+            )
+            .map_err(|e| Error::Usage(format!("stdout: {e}")));
+        }
+    }
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
         .map_err(|e| Error::Usage(format!("stdout: {e}")))
 }
@@ -78,6 +112,23 @@ pub fn commit(global: &GlobalFlags, args: UpdateSetIdArg) -> Result<()> {
     );
     let resp = client.post(&path, &[], &serde_json::json!({}))?;
     let out = unwrap_or_raw(resp, global.output);
+    if args.wait {
+        if let Some(progress_id) = out
+            .get("links")
+            .and_then(|l| l.get("progress"))
+            .and_then(|p| p.get("id"))
+            .and_then(|id| id.as_str())
+        {
+            let final_result =
+                crate::cli::progress::wait_for_completion(&client, progress_id, global)?;
+            return emit_value(
+                io::stdout().lock(),
+                &final_result,
+                format_from_flags(global),
+            )
+            .map_err(|e| Error::Usage(format!("stdout: {e}")));
+        }
+    }
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
         .map_err(|e| Error::Usage(format!("stdout: {e}")))
 }
@@ -92,6 +143,23 @@ pub fn commit_multiple(global: &GlobalFlags, args: UpdateSetCommitMultipleArgs) 
         &serde_json::json!({}),
     )?;
     let out = unwrap_or_raw(resp, global.output);
+    if args.wait {
+        if let Some(progress_id) = out
+            .get("links")
+            .and_then(|l| l.get("progress"))
+            .and_then(|p| p.get("id"))
+            .and_then(|id| id.as_str())
+        {
+            let final_result =
+                crate::cli::progress::wait_for_completion(&client, progress_id, global)?;
+            return emit_value(
+                io::stdout().lock(),
+                &final_result,
+                format_from_flags(global),
+            )
+            .map_err(|e| Error::Usage(format!("stdout: {e}")));
+        }
+    }
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
         .map_err(|e| Error::Usage(format!("stdout: {e}")))
 }
@@ -109,6 +177,23 @@ pub fn back_out(global: &GlobalFlags, args: UpdateSetBackOutArgs) -> Result<()> 
         &serde_json::json!({}),
     )?;
     let out = unwrap_or_raw(resp, global.output);
+    if args.wait {
+        if let Some(progress_id) = out
+            .get("links")
+            .and_then(|l| l.get("progress"))
+            .and_then(|p| p.get("id"))
+            .and_then(|id| id.as_str())
+        {
+            let final_result =
+                crate::cli::progress::wait_for_completion(&client, progress_id, global)?;
+            return emit_value(
+                io::stdout().lock(),
+                &final_result,
+                format_from_flags(global),
+            )
+            .map_err(|e| Error::Usage(format!("stdout: {e}")));
+        }
+    }
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
         .map_err(|e| Error::Usage(format!("stdout: {e}")))
 }

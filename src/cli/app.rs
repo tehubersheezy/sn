@@ -34,6 +34,23 @@ pub fn install(global: &GlobalFlags, args: AppInstallArgs) -> Result<()> {
         &serde_json::json!({}),
     )?;
     let out = unwrap_or_raw(resp, global.output);
+    if args.wait {
+        if let Some(progress_id) = out
+            .get("links")
+            .and_then(|l| l.get("progress"))
+            .and_then(|p| p.get("id"))
+            .and_then(|id| id.as_str())
+        {
+            let final_result =
+                crate::cli::progress::wait_for_completion(&client, progress_id, global)?;
+            return emit_value(
+                io::stdout().lock(),
+                &final_result,
+                format_from_flags(global),
+            )
+            .map_err(|e| Error::Usage(format!("stdout: {e}")));
+        }
+    }
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
         .map_err(|e| Error::Usage(format!("stdout: {e}")))
 }
@@ -65,6 +82,23 @@ pub fn publish(global: &GlobalFlags, args: AppPublishArgs) -> Result<()> {
         &serde_json::json!({}),
     )?;
     let out = unwrap_or_raw(resp, global.output);
+    if args.wait {
+        if let Some(progress_id) = out
+            .get("links")
+            .and_then(|l| l.get("progress"))
+            .and_then(|p| p.get("id"))
+            .and_then(|id| id.as_str())
+        {
+            let final_result =
+                crate::cli::progress::wait_for_completion(&client, progress_id, global)?;
+            return emit_value(
+                io::stdout().lock(),
+                &final_result,
+                format_from_flags(global),
+            )
+            .map_err(|e| Error::Usage(format!("stdout: {e}")));
+        }
+    }
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
         .map_err(|e| Error::Usage(format!("stdout: {e}")))
 }
@@ -91,6 +125,23 @@ pub fn rollback(global: &GlobalFlags, args: AppRollbackArgs) -> Result<()> {
         &serde_json::json!({}),
     )?;
     let out = unwrap_or_raw(resp, global.output);
+    if args.wait {
+        if let Some(progress_id) = out
+            .get("links")
+            .and_then(|l| l.get("progress"))
+            .and_then(|p| p.get("id"))
+            .and_then(|id| id.as_str())
+        {
+            let final_result =
+                crate::cli::progress::wait_for_completion(&client, progress_id, global)?;
+            return emit_value(
+                io::stdout().lock(),
+                &final_result,
+                format_from_flags(global),
+            )
+            .map_err(|e| Error::Usage(format!("stdout: {e}")));
+        }
+    }
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
         .map_err(|e| Error::Usage(format!("stdout: {e}")))
 }

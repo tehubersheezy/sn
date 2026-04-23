@@ -100,11 +100,12 @@ sn aggregate incident --sum-fields reassignment_count --min-fields priority --ma
 
 ## CICD operations
 
-App, updateset, and atf are async — they return a `progress_id`. Poll with `sn progress <id>`.
+App, updateset, and atf are async — they return a `progress_id`. Poll with `sn progress <id>`, or use `--wait` to block until done.
 
 ```bash
 # App lifecycle
 sn app install --scope x_myapp --version 1.2.0
+sn app install --scope x_myapp --version 1.2.0 --wait    # blocks until done
 sn app publish --scope x_myapp --version 1.3.0 --dev-notes "Bug fixes"
 sn app rollback --scope x_myapp --version 1.1.0
 
@@ -112,12 +113,15 @@ sn app rollback --scope x_myapp --version 1.1.0
 sn updateset create --name "Changes" --description "Sprint work"
 sn updateset retrieve --update-set-id <id> --auto-preview
 sn updateset preview <remote_update_set_id>
+sn updateset preview <remote_update_set_id> --wait        # blocks until done
 sn updateset commit <remote_update_set_id>
+sn updateset commit <remote_update_set_id> --wait         # blocks until done
 sn updateset commit-multiple --ids id1,id2,id3
 sn updateset back-out --update-set-id <id>
 
 # ATF testing
-sn atf run --suite-name "Regression Suite"   # returns progress_id
+sn atf run --suite-name "Regression Suite"                # returns progress_id
+sn atf run --suite-name "Regression Suite" --wait         # blocks until done
 sn atf results <result_id>
 
 # Poll any async operation

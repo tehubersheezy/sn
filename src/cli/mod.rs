@@ -419,6 +419,9 @@ pub struct AppInstallArgs {
     /// Version of the base application to use.
     #[arg(long)]
     pub base_app_version: Option<String>,
+    /// Block until the operation completes (polls progress API).
+    #[arg(long)]
+    pub wait: bool,
 }
 
 #[derive(clap::Args, Debug)]
@@ -435,6 +438,9 @@ pub struct AppPublishArgs {
     /// Developer notes for this publish.
     #[arg(long)]
     pub dev_notes: Option<String>,
+    /// Block until the operation completes (polls progress API).
+    #[arg(long)]
+    pub wait: bool,
 }
 
 #[derive(clap::Args, Debug)]
@@ -448,6 +454,9 @@ pub struct AppRollbackArgs {
     /// Version to roll back to (required).
     #[arg(long, required = true)]
     pub version: String,
+    /// Block until the operation completes (polls progress API).
+    #[arg(long)]
+    pub wait: bool,
 }
 
 // ── Update Set ───────────────────────────────────────────────────────────────
@@ -501,6 +510,9 @@ pub struct UpdateSetRetrieveArgs {
     /// Clean up retrieved set after preview/commit.
     #[arg(long)]
     pub cleanup_retrieved: bool,
+    /// Block until the operation completes (polls progress API).
+    #[arg(long)]
+    pub wait: bool,
 }
 
 /// Shared arg struct for preview and commit (single path param).
@@ -508,6 +520,9 @@ pub struct UpdateSetRetrieveArgs {
 pub struct UpdateSetIdArg {
     /// Remote Update Set sys_id.
     pub remote_update_set_id: String,
+    /// Block until the operation completes (polls progress API).
+    #[arg(long)]
+    pub wait: bool,
 }
 
 #[derive(clap::Args, Debug)]
@@ -515,6 +530,9 @@ pub struct UpdateSetCommitMultipleArgs {
     /// Comma-separated list of remote Update Set sys_ids.
     #[arg(long, required = true)]
     pub ids: String,
+    /// Block until the operation completes (polls progress API).
+    #[arg(long)]
+    pub wait: bool,
 }
 
 #[derive(clap::Args, Debug)]
@@ -525,6 +543,9 @@ pub struct UpdateSetBackOutArgs {
     /// Also roll back any application installs included in the set.
     #[arg(long)]
     pub rollback_installs: bool,
+    /// Block until the operation completes (polls progress API).
+    #[arg(long)]
+    pub wait: bool,
 }
 
 // ── ATF ──────────────────────────────────────────────────────────────────────
@@ -563,6 +584,9 @@ pub struct AtfRunArgs {
     /// Record performance metrics during the run.
     #[arg(long)]
     pub performance_run: bool,
+    /// Block until the operation completes (polls progress API).
+    #[arg(long)]
+    pub wait: bool,
 }
 
 #[derive(clap::Args, Debug)]

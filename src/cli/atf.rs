@@ -39,6 +39,23 @@ pub fn run(global: &GlobalFlags, args: AtfRunArgs) -> Result<()> {
     }
     let resp = client.post("/api/sn_cicd/testsuite/run", &query, &serde_json::json!({}))?;
     let out = unwrap_or_raw(resp, global.output);
+    if args.wait {
+        if let Some(progress_id) = out
+            .get("links")
+            .and_then(|l| l.get("progress"))
+            .and_then(|p| p.get("id"))
+            .and_then(|id| id.as_str())
+        {
+            let final_result =
+                crate::cli::progress::wait_for_completion(&client, progress_id, global)?;
+            return emit_value(
+                io::stdout().lock(),
+                &final_result,
+                format_from_flags(global),
+            )
+            .map_err(|e| Error::Usage(format!("stdout: {e}")));
+        }
+    }
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
         .map_err(|e| Error::Usage(format!("stdout: {e}")))
 }

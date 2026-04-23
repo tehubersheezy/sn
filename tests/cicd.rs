@@ -246,3 +246,61 @@ async fn atf_results_get_unwraps_result() {
     .await
     .unwrap();
 }
+
+// ── --wait flag ───────────────────────────────────────────────────────────────
+
+#[tokio::test(flavor = "current_thread")]
+async fn app_install_wait_polls_until_complete() {
+    let server = wiremock::MockServer::start().await;
+
+    // Initial install POST returns progress link
+    Mock::given(method("POST"))
+        .and(path("/api/sn_cicd/app_repo/install"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "result": {
+                "links": {
+                    "progress": {
+                        "id": "prog123"
+                    }
+                },
+                "status": "0",
+                "status_label": "Pending"
+            }
+        })))
+        .mount(&server)
+        .await;
+
+    // Progress poll: already complete
+    Mock::given(method("GET"))
+        .and(path("/api/sn_cicd/progress/prog123"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "result": {
+                "status": "2",
+                "status_label": "Succeeded",
+                "percent_complete": "100",
+                "status_message": "Install complete"
+            }
+        })))
+        .mount(&server)
+        .await;
+
+    let server_uri = server.uri();
+    tokio::task::spawn_blocking(move || {
+        let out = Command::cargo_bin("sn")
+            .unwrap()
+            .env("SN_INSTANCE", &server_uri)
+            .env("SN_USERNAME", "u")
+            .env("SN_PASSWORD", "p")
+            .args(["--compact", "app", "install", "--scope", "x_test", "--wait"])
+            .assert()
+            .success();
+        let stdout = String::from_utf8(out.get_output().stdout.clone()).unwrap();
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert!(
+            v["status_label"] == "Succeeded" || v["status_message"] == "Install complete",
+            "expected final progress result, got: {stdout}"
+        );
+    })
+    .await
+    .unwrap();
+}

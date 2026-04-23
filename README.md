@@ -230,6 +230,13 @@ sn atf results <result_id>
 sn progress <progress_id>
 ```
 
+Alternatively, use `--wait` to block until the operation completes:
+
+```bash
+sn app install --scope x_myapp --version 1.2.0 --wait
+sn atf run --suite-name "Regression Suite" --wait
+```
+
 ### Performance Analytics scorecards
 
 ```bash
