@@ -54,7 +54,7 @@ sn auth test                               # verify credentials
 sn --profile prod table list incident      # select profile per command
 ```
 
-Env overrides: `SN_INSTANCE`, `SN_USERNAME`, `SN_PASSWORD`, `SN_PROFILE`.
+Env overrides: `SN_INSTANCE`, `SN_USERNAME`, `SN_PASSWORD`, `SN_PROFILE`, `SN_PROXY`, `SN_INSECURE`.
 
 ## Key flags
 
@@ -64,6 +64,21 @@ Every `sysparm_*` has a friendly name and raw alias (e.g. `--query` / `--sysparm
 - `--setlimit N` (default 1000, aliases `--limit`, `--page-size`, `--sysparm-limit`) — max records returned
 - `--input-display-value` — set fields by display value on writes
 - `-v` / `-vv` / `-vvv` — debug logging to stderr (auth always masked)
+
+## Proxy and TLS
+
+```bash
+sn --proxy http://proxy:8080 table list incident       # HTTP proxy
+sn --proxy socks5://proxy:1080 table list incident     # SOCKS5 proxy
+sn --insecure table list incident                      # skip TLS cert verification
+sn --ca-cert /path/to/ca.pem table list incident       # custom CA
+sn --no-proxy table list incident                      # bypass configured proxy
+```
+
+Env vars: `SN_PROXY`, `SN_NO_PROXY`, `SN_INSECURE=1`, `SN_CA_CERT`, `SN_PROXY_CA_CERT`.
+Per-profile in `config.toml`: `proxy`, `no_proxy`, `insecure`, `ca_cert`, `proxy_ca_cert`.
+Proxy auth in `credentials.toml`: `proxy_username`, `proxy_password`.
+Precedence: CLI flag > env var > profile config.
 
 ## Common mistakes
 
