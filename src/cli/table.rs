@@ -14,11 +14,11 @@ use crate::query::{DeleteQuery, GetQuery, ListQuery, WriteQuery};
 use is_terminal::IsTerminal;
 use serde_json::Value;
 use std::io::{self, Write};
+use std::time::Duration;
 
 pub fn list(global: &GlobalFlags, args: TableListArgs) -> Result<()> {
     let profile = build_profile(global)?;
-    let retry = retry_policy(global.no_retry);
-    let client = Client::builder().retry(retry).build(&profile)?;
+    let client = build_client(&profile, global.no_retry, global.timeout)?;
 
     if args.all {
         let q = ListQuery {
@@ -95,6 +95,11 @@ pub(crate) fn build_profile(global: &GlobalFlags) -> Result<ResolvedProfile> {
     let env_instance = std::env::var("SN_INSTANCE").ok();
     let env_username = std::env::var("SN_USERNAME").ok();
     let env_password = std::env::var("SN_PASSWORD").ok();
+    let env_proxy = std::env::var("SN_PROXY").ok();
+    let env_no_proxy = std::env::var("SN_NO_PROXY").ok();
+    let env_insecure = std::env::var("SN_INSECURE").ok();
+    let env_ca_cert = std::env::var("SN_CA_CERT").ok();
+    let env_proxy_ca_cert = std::env::var("SN_PROXY_CA_CERT").ok();
     resolve_profile(ProfileResolverInputs {
         cli_profile: global.profile.as_deref(),
         env_profile: env_profile.as_deref(),
@@ -102,6 +107,16 @@ pub(crate) fn build_profile(global: &GlobalFlags) -> Result<ResolvedProfile> {
         env_instance: env_instance.as_deref(),
         env_username: env_username.as_deref(),
         env_password: env_password.as_deref(),
+        cli_proxy: global.proxy.as_deref(),
+        env_proxy: env_proxy.as_deref(),
+        cli_no_proxy: global.no_proxy,
+        env_no_proxy: env_no_proxy.as_deref(),
+        cli_insecure: global.insecure,
+        env_insecure: env_insecure.as_deref(),
+        cli_ca_cert: global.ca_cert.as_deref(),
+        env_ca_cert: env_ca_cert.as_deref(),
+        cli_proxy_ca_cert: global.proxy_ca_cert.as_deref(),
+        env_proxy_ca_cert: env_proxy_ca_cert.as_deref(),
         config: &config,
         credentials: &creds,
     })
@@ -116,6 +131,25 @@ pub(crate) fn retry_policy(no_retry: bool) -> RetryPolicy {
     } else {
         RetryPolicy::default()
     }
+}
+
+pub(crate) fn build_client(
+    profile: &ResolvedProfile,
+    no_retry: bool,
+    timeout: Option<u64>,
+) -> Result<Client> {
+    let mut b = Client::builder()
+        .retry(retry_policy(no_retry))
+        .proxy(profile.proxy.clone())
+        .no_proxy(profile.no_proxy.clone())
+        .insecure(profile.insecure)
+        .ca_cert(profile.ca_cert.clone())
+        .proxy_ca_cert(profile.proxy_ca_cert.clone())
+        .proxy_auth(profile.proxy_username.clone(), profile.proxy_password.clone());
+    if let Some(secs) = timeout {
+        b = b.timeout(Duration::from_secs(secs));
+    }
+    b.build(profile)
 }
 
 pub(crate) fn bool_opt(b: bool) -> Option<bool> {
@@ -145,9 +179,7 @@ pub(crate) fn unwrap_or_raw(v: Value, mode: OutputMode) -> Value {
 
 pub fn get(global: &GlobalFlags, args: TableGetArgs) -> Result<()> {
     let profile = build_profile(global)?;
-    let client = Client::builder()
-        .retry(retry_policy(global.no_retry))
-        .build(&profile)?;
+    let client = build_client(&profile, global.no_retry, global.timeout)?;
     let q = GetQuery {
         fields: args.fields,
         display_value: args.display_value.map(Into::into),
@@ -176,9 +208,7 @@ pub fn create(global: &GlobalFlags, args: TableCreateArgs) -> Result<()> {
     let body = build_body(body_input)?;
 
     let profile = build_profile(global)?;
-    let client = Client::builder()
-        .retry(retry_policy(global.no_retry))
-        .build(&profile)?;
+    let client = build_client(&profile, global.no_retry, global.timeout)?;
     let q = WriteQuery {
         fields: args.fields,
         display_value: args.display_value.map(Into::into),
@@ -264,9 +294,7 @@ fn write_op(
     };
     let body = build_body(body_input)?;
     let profile = build_profile(global)?;
-    let client = Client::builder()
-        .retry(retry_policy(global.no_retry))
-        .build(&profile)?;
+    let client = build_client(&profile, global.no_retry, global.timeout)?;
     let q = WriteQuery {
         fields,
         display_value: display_value.map(Into::into),
@@ -303,9 +331,7 @@ pub fn delete(global: &GlobalFlags, args: TableDeleteArgs) -> Result<()> {
         }
     }
     let profile = build_profile(global)?;
-    let client = Client::builder()
-        .retry(retry_policy(global.no_retry))
-        .build(&profile)?;
+    let client = build_client(&profile, global.no_retry, global.timeout)?;
     let q = DeleteQuery {
         query_no_domain: bool_opt(args.query_no_domain),
     };

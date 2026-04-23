@@ -1,14 +1,12 @@
 use crate::cli::{AggregateArgs, GlobalFlags};
-use crate::client::Client;
 use crate::error::{Error, Result};
 use crate::output::emit_value;
 
-use super::table::{bool_opt, build_profile, format_from_flags, retry_policy, unwrap_or_raw};
+use super::table::{bool_opt, build_client, build_profile, format_from_flags, unwrap_or_raw};
 
 pub fn run(global: &GlobalFlags, args: AggregateArgs) -> Result<()> {
     let profile = build_profile(global)?;
-    let retry = retry_policy(global.no_retry);
-    let client = Client::builder().retry(retry).build(&profile)?;
+    let client = build_client(&profile, global.no_retry, global.timeout)?;
 
     let mut q: Vec<(String, String)> = Vec::new();
     if let Some(v) = args.query {

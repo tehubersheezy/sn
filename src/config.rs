@@ -18,6 +18,16 @@ pub struct Config {
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ProfileConfig {
     pub instance: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub no_proxy: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub insecure: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ca_cert: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy_ca_cert: Option<String>,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -30,6 +40,10 @@ pub struct Credentials {
 pub struct ProfileCredentials {
     pub username: String,
     pub password: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy_username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy_password: Option<String>,
 }
 
 /// Resolve the sn config directory via `directories::ProjectDirs`.
@@ -66,6 +80,7 @@ mod tests {
             "dev".into(),
             ProfileConfig {
                 instance: "example.com".into(),
+                ..Default::default()
             },
         );
         let cfg = Config {
@@ -85,6 +100,7 @@ mod tests {
             ProfileCredentials {
                 username: "u".into(),
                 password: "p".into(),
+                ..Default::default()
             },
         );
         let cr = Credentials { profiles };
@@ -150,6 +166,13 @@ pub struct ResolvedProfile {
     pub instance: String,
     pub username: String,
     pub password: String,
+    pub proxy: Option<String>,
+    pub no_proxy: Option<String>,
+    pub insecure: bool,
+    pub ca_cert: Option<String>,
+    pub proxy_ca_cert: Option<String>,
+    pub proxy_username: Option<String>,
+    pub proxy_password: Option<String>,
 }
 
 pub struct ProfileResolverInputs<'a> {
@@ -159,6 +182,16 @@ pub struct ProfileResolverInputs<'a> {
     pub env_instance: Option<&'a str>,
     pub env_username: Option<&'a str>,
     pub env_password: Option<&'a str>,
+    pub cli_proxy: Option<&'a str>,
+    pub env_proxy: Option<&'a str>,
+    pub cli_no_proxy: bool,
+    pub env_no_proxy: Option<&'a str>,
+    pub cli_insecure: bool,
+    pub env_insecure: Option<&'a str>,
+    pub cli_ca_cert: Option<&'a str>,
+    pub env_ca_cert: Option<&'a str>,
+    pub cli_proxy_ca_cert: Option<&'a str>,
+    pub env_proxy_ca_cert: Option<&'a str>,
     pub config: &'a Config,
     pub credentials: &'a Credentials,
 }
@@ -205,11 +238,55 @@ pub fn resolve_profile(inputs: ProfileResolverInputs<'_>) -> Result<ResolvedProf
             ))
         })?;
 
+    let proxy = if inputs.cli_no_proxy {
+        None
+    } else {
+        inputs
+            .cli_proxy
+            .map(ToString::to_string)
+            .or_else(|| inputs.env_proxy.map(ToString::to_string))
+            .or_else(|| profile_cfg.and_then(|p| p.proxy.clone()))
+    };
+
+    let no_proxy = inputs
+        .env_no_proxy
+        .map(ToString::to_string)
+        .or_else(|| profile_cfg.and_then(|p| p.no_proxy.clone()));
+
+    let insecure = inputs.cli_insecure
+        || inputs
+            .env_insecure
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false)
+        || profile_cfg.map(|p| p.insecure).unwrap_or(false);
+
+    let ca_cert = inputs
+        .cli_ca_cert
+        .map(ToString::to_string)
+        .or_else(|| inputs.env_ca_cert.map(ToString::to_string))
+        .or_else(|| profile_cfg.and_then(|p| p.ca_cert.clone()));
+
+    let proxy_ca_cert = inputs
+        .cli_proxy_ca_cert
+        .map(ToString::to_string)
+        .or_else(|| inputs.env_proxy_ca_cert.map(ToString::to_string))
+        .or_else(|| profile_cfg.and_then(|p| p.proxy_ca_cert.clone()));
+
+    let proxy_username = profile_cred.and_then(|p| p.proxy_username.clone());
+    let proxy_password = profile_cred.and_then(|p| p.proxy_password.clone());
+
     Ok(ResolvedProfile {
         name,
         instance,
         username,
         password,
+        proxy,
+        no_proxy,
+        insecure,
+        ca_cert,
+        proxy_ca_cert,
+        proxy_username,
+        proxy_password,
     })
 }
 
@@ -226,12 +303,14 @@ mod resolution_tests {
             "dev".into(),
             ProfileConfig {
                 instance: "dev.example.com".into(),
+                ..Default::default()
             },
         );
         cfg.profiles.insert(
             "prod".into(),
             ProfileConfig {
                 instance: "prod.example.com".into(),
+                ..Default::default()
             },
         );
         cfg
@@ -244,6 +323,7 @@ mod resolution_tests {
             ProfileCredentials {
                 username: "dev-u".into(),
                 password: "dev-p".into(),
+                ..Default::default()
             },
         );
         cr.profiles.insert(
@@ -251,26 +331,40 @@ mod resolution_tests {
             ProfileCredentials {
                 username: "prod-u".into(),
                 password: "prod-p".into(),
+                ..Default::default()
             },
         );
         cr
     }
 
-    #[test]
-    fn default_profile_when_none_specified() {
-        let cfg = sample_config();
-        let cr = sample_credentials();
-        let r = resolve_profile(ProfileResolverInputs {
+    fn base_inputs<'a>(cfg: &'a Config, cr: &'a Credentials) -> ProfileResolverInputs<'a> {
+        ProfileResolverInputs {
             cli_profile: None,
             env_profile: None,
             cli_instance_override: None,
             env_instance: None,
             env_username: None,
             env_password: None,
-            config: &cfg,
-            credentials: &cr,
-        })
-        .unwrap();
+            cli_proxy: None,
+            env_proxy: None,
+            cli_no_proxy: false,
+            env_no_proxy: None,
+            cli_insecure: false,
+            env_insecure: None,
+            cli_ca_cert: None,
+            env_ca_cert: None,
+            cli_proxy_ca_cert: None,
+            env_proxy_ca_cert: None,
+            config: cfg,
+            credentials: cr,
+        }
+    }
+
+    #[test]
+    fn default_profile_when_none_specified() {
+        let cfg = sample_config();
+        let cr = sample_credentials();
+        let r = resolve_profile(base_inputs(&cfg, &cr)).unwrap();
         assert_eq!(r.name, "dev");
         assert_eq!(r.instance, "dev.example.com");
     }
@@ -282,12 +376,7 @@ mod resolution_tests {
         let r = resolve_profile(ProfileResolverInputs {
             cli_profile: Some("prod"),
             env_profile: Some("dev"),
-            cli_instance_override: None,
-            env_instance: None,
-            env_username: None,
-            env_password: None,
-            config: &cfg,
-            credentials: &cr,
+            ..base_inputs(&cfg, &cr)
         })
         .unwrap();
         assert_eq!(r.name, "prod");
@@ -299,14 +388,10 @@ mod resolution_tests {
         let cfg = sample_config();
         let cr = sample_credentials();
         let r = resolve_profile(ProfileResolverInputs {
-            cli_profile: None,
-            env_profile: None,
-            cli_instance_override: None,
             env_instance: Some("override.example.com"),
             env_username: Some("env-u"),
             env_password: Some("env-p"),
-            config: &cfg,
-            credentials: &cr,
+            ..base_inputs(&cfg, &cr)
         })
         .unwrap();
         assert_eq!(r.instance, "override.example.com");
@@ -319,14 +404,9 @@ mod resolution_tests {
         let cfg = Config::default();
         let cr = Credentials::default();
         let err = resolve_profile(ProfileResolverInputs {
-            cli_profile: None,
-            env_profile: None,
-            cli_instance_override: None,
-            env_instance: None,
             env_username: Some("u"),
             env_password: Some("p"),
-            config: &cfg,
-            credentials: &cr,
+            ..base_inputs(&cfg, &cr)
         })
         .unwrap_err();
         assert!(matches!(err, Error::Config(_)));

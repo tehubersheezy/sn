@@ -60,6 +60,26 @@ pub struct GlobalFlags {
     /// Verbosity: -v, -vv, -vvv (see spec §9).
     #[arg(short, long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,
+
+    /// Proxy URL (http://, https://, socks5://). Overrides SN_PROXY and profile config.
+    #[arg(long, global = true, value_name = "URL")]
+    pub proxy: Option<String>,
+
+    /// Bypass any configured proxy for this invocation.
+    #[arg(long, global = true)]
+    pub no_proxy: bool,
+
+    /// Custom CA certificate for the proxy connection.
+    #[arg(long, global = true, value_name = "PATH")]
+    pub proxy_ca_cert: Option<String>,
+
+    /// Disable TLS certificate verification (DANGEROUS).
+    #[arg(long, global = true)]
+    pub insecure: bool,
+
+    /// Custom CA certificate bundle for the ServiceNow endpoint.
+    #[arg(long, global = true, value_name = "PATH")]
+    pub ca_cert: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq, Default)]

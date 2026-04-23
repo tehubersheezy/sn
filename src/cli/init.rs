@@ -46,6 +46,7 @@ pub fn run(args: InitArgs) -> Result<()> {
         profile_name.clone(),
         ProfileConfig {
             instance: instance.clone(),
+            ..Default::default()
         },
     );
     creds.profiles.insert(
@@ -53,6 +54,7 @@ pub fn run(args: InitArgs) -> Result<()> {
         ProfileCredentials {
             username: username.clone(),
             password: password.clone(),
+            ..Default::default()
         },
     );
 
@@ -64,6 +66,13 @@ pub fn run(args: InitArgs) -> Result<()> {
         instance,
         username,
         password,
+        proxy: None,
+        no_proxy: None,
+        insecure: false,
+        ca_cert: None,
+        proxy_ca_cert: None,
+        proxy_username: None,
+        proxy_password: None,
     };
     let client = Client::builder()
         .retry(RetryPolicy::default())
