@@ -58,10 +58,10 @@ Env overrides: `SN_INSTANCE`, `SN_USERNAME`, `SN_PASSWORD`, `SN_PROFILE`, `SN_PR
 
 ## Key flags
 
-Every `sysparm_*` has a friendly name and raw alias (e.g. `--query` / `--sysparm-query`). Run `sn table list --help` for the full set. Notable:
+Every `sysparm_*` has a friendly name and raw alias (e.g. `--query` / `--sysparm-query`). Notable:
 
 - `--display-value true|false|all` — resolve choice/reference fields to labels
-- `--setlimit N` (default 1000, aliases `--limit`, `--page-size`, `--sysparm-limit`) — max records returned
+- `--setlimit N` (default 1000, aliases `--limit`, `--page-size`) — max records returned
 - `--input-display-value` — set fields by display value on writes
 - `-v` / `-vv` / `-vvv` — debug logging to stderr (auth always masked)
 
@@ -76,8 +76,7 @@ sn --no-proxy table list incident                      # bypass configured proxy
 ```
 
 Env vars: `SN_PROXY`, `SN_NO_PROXY`, `SN_INSECURE=1`, `SN_CA_CERT`, `SN_PROXY_CA_CERT`.
-Per-profile in `config.toml`: `proxy`, `no_proxy`, `insecure`, `ca_cert`, `proxy_ca_cert`.
-Proxy auth in `credentials.toml`: `proxy_username`, `proxy_password`.
+Per-profile in `config.toml`: `proxy`, `no_proxy`, `insecure`, `ca_cert`, `proxy_ca_cert`. Proxy auth in `credentials.toml`: `proxy_username`, `proxy_password`.
 Precedence: CLI flag > env var > profile config.
 
 ## Common mistakes
@@ -86,7 +85,7 @@ Precedence: CLI flag > env var > profile config.
 - Forgetting `--yes` on delete in non-interactive contexts — hangs on stdin.
 - Forgetting `--display-value true` — get cryptic numbers instead of labels.
 - Mixing `--data` and `--field` — mutually exclusive, exits 1.
-- Using `--query` on `get` — only works on `list`; use `list --query "..." --setlimit 1` instead.
+- Using `--query` on `get` — only works on `list`; use `list --query "..." --setlimit 1`.
 
 ## Aggregate queries
 
@@ -100,31 +99,27 @@ sn aggregate incident --sum-fields reassignment_count --min-fields priority --ma
 
 ## CICD operations
 
-App, updateset, and atf are async — they return a `progress_id`. Poll with `sn progress <id>`, or use `--wait` to block until done.
+App, updateset, and atf are async. Use `--wait` to block until done (preferred); poll manually with `sn progress <id>` for already-running operations.
 
 ```bash
 # App lifecycle
-sn app install --scope x_myapp --version 1.2.0
-sn app install --scope x_myapp --version 1.2.0 --wait    # blocks until done
-sn app publish --scope x_myapp --version 1.3.0 --dev-notes "Bug fixes"
-sn app rollback --scope x_myapp --version 1.1.0
+sn app install --scope x_myapp --version 1.2.0 --wait     # blocks until done
+sn app publish --scope x_myapp --version 1.3.0 --dev-notes "Bug fixes" --wait
+sn app rollback --scope x_myapp --version 1.1.0 --wait
 
 # Update sets
 sn updateset create --name "Changes" --description "Sprint work"
 sn updateset retrieve --update-set-id <id> --auto-preview
-sn updateset preview <remote_update_set_id>
-sn updateset preview <remote_update_set_id> --wait        # blocks until done
-sn updateset commit <remote_update_set_id>
-sn updateset commit <remote_update_set_id> --wait         # blocks until done
+sn updateset preview <remote_update_set_id> --wait         # blocks until done
+sn updateset commit <remote_update_set_id> --wait          # blocks until done
 sn updateset commit-multiple --ids id1,id2,id3
-sn updateset back-out --update-set-id <id>
+sn updateset back-out --update-set-id <id> --wait
 
 # ATF testing
-sn atf run --suite-name "Regression Suite"                # returns progress_id
-sn atf run --suite-name "Regression Suite" --wait         # blocks until done
+sn atf run --suite-name "Regression Suite" --wait          # blocks until done
 sn atf results <result_id>
 
-# Poll any async operation
+# Poll an already-running operation
 sn progress <progress_id>
 ```
 

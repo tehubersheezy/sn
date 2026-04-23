@@ -186,12 +186,10 @@ sn aggregate incident \
 Install, publish, and roll back scoped applications from the ServiceNow App Repository:
 
 ```bash
-sn app install --scope x_myapp --version 1.2.0
-sn app publish --scope x_myapp --version 1.3.0 --dev-notes "Bug fixes"
-sn app rollback --scope x_myapp --version 1.1.0
+sn app install --scope x_myapp --version 1.2.0 --wait
+sn app publish --scope x_myapp --version 1.3.0 --dev-notes "Bug fixes" --wait
+sn app rollback --scope x_myapp --version 1.1.0 --wait
 ```
-
-These commands return a `progress_id`. Poll it with `sn progress <progress_id>` until the operation completes.
 
 #### Update sets
 
@@ -202,15 +200,15 @@ sn updateset create --name "My Changes" --description "Sprint 42 work"
 # Retrieve a remote Update Set into this instance
 sn updateset retrieve --update-set-id <id> --auto-preview
 
-# Preview and commit
-sn updateset preview <remote_update_set_id>
-sn updateset commit <remote_update_set_id>
+# Preview and commit (--wait blocks until each step completes)
+sn updateset preview <remote_update_set_id> --wait
+sn updateset commit <remote_update_set_id> --wait
 
 # Commit several at once
 sn updateset commit-multiple --ids id1,id2,id3
 
 # Undo an applied Update Set
-sn updateset back-out --update-set-id <id>
+sn updateset back-out --update-set-id <id> --wait
 ```
 
 #### ATF testing
@@ -218,23 +216,23 @@ sn updateset back-out --update-set-id <id>
 Run Automated Test Framework suites and retrieve their results:
 
 ```bash
-sn atf run --suite-name "Regression Suite"
+sn atf run --suite-name "Regression Suite" --wait
 sn atf results <result_id>
 ```
 
 #### Polling async progress
 
-`app`, `updateset`, and `atf run` are asynchronous — they return a `progress_id` immediately. Poll until the operation finishes:
-
-```bash
-sn progress <progress_id>
-```
-
-Alternatively, use `--wait` to block until the operation completes:
+`app`, `updateset`, and `atf run` are asynchronous. Pass `--wait` to any of these commands and it will block until the operation completes (or fails), then emit the final progress result — no manual polling needed:
 
 ```bash
 sn app install --scope x_myapp --version 1.2.0 --wait
 sn atf run --suite-name "Regression Suite" --wait
+```
+
+To check the status of an already-running operation, use `sn progress` with the `progress_id` from the initial response:
+
+```bash
+sn progress <progress_id>
 ```
 
 ### Performance Analytics scorecards

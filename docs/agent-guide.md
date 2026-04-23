@@ -710,7 +710,37 @@ Key flags for `aggregate`:
 
 ### The async pattern
 
-`app`, `updateset`, and `atf run` are asynchronous. Every triggering command returns a progress object immediately:
+`app`, `updateset`, and `atf run` are asynchronous. The recommended approach for agents is `--wait`: it blocks the command until the operation succeeds or fails (polling `GET /api/sn_cicd/progress/{id}` every 2 seconds internally) and then emits the final progress result. This eliminates the polling loop entirely.
+
+**With `--wait` (preferred for agents):**
+
+```bash
+# Blocks until the install completes or fails, then prints the final progress result
+result=$(sn app install --scope x_myapp --version 1.2.0 --wait)
+status=$(echo "$result" | jq -r '.status_label')
+if [ "$status" != "Complete" ]; then
+  echo "Install failed: $(echo "$result" | jq -r '.status_message')" >&2
+  exit 1
+fi
+```
+
+The final progress result shape emitted by `--wait`:
+
+```json
+{
+  "status": "2",
+  "status_label": "Complete",
+  "status_message": "Application installed successfully",
+  "status_detail": "Install complete",
+  "percent_complete": 100
+}
+```
+
+`status` codes: `0` = Pending, `1` = Running, `2` = Complete, `3` = Failed, `4` = Cancelled.
+
+**Without `--wait` (manual polling — use for already-running operations):**
+
+Every triggering command returns a progress object immediately:
 
 ```json
 {
@@ -743,42 +773,29 @@ while true; do
 done
 ```
 
-The progress response shape:
-
-```json
-{
-  "status": "2",
-  "status_label": "Complete",
-  "status_message": "Application installed successfully",
-  "status_detail": "Install complete",
-  "percent_complete": 100
-}
-```
-
-`status` codes: `0` = Pending, `1` = Running, `2` = Complete, `3` = Failed, `4` = Cancelled.
-
 ### App lifecycle
 
 Install, publish, and roll back scoped applications from the ServiceNow App Repository. All three are identified by `--scope` (e.g. `x_acme_myapp`) or `--sys-id`.
 
 ```bash
-# Install a specific version
-sn app install --scope x_myapp --version 1.2.0
+# Install a specific version and wait for completion
+sn app install --scope x_myapp --version 1.2.0 --wait
 ```
 ```json
 {
-  "links": {"progress": {"id": "abc123def456"}},
-  "status": "0",
-  "status_label": "Pending"
+  "status": "2",
+  "status_label": "Complete",
+  "status_message": "Application installed successfully",
+  "percent_complete": 100
 }
 ```
 
 ```bash
 # Publish to the app repo with release notes
-sn app publish --scope x_myapp --version 1.3.0 --dev-notes "Fix null pointer in approval flow"
+sn app publish --scope x_myapp --version 1.3.0 --dev-notes "Fix null pointer in approval flow" --wait
 
 # Roll back to a previous version (--version is required)
-sn app rollback --scope x_myapp --version 1.1.0
+sn app rollback --scope x_myapp --version 1.1.0 --wait
 ```
 
 ### Update Set lifecycle
@@ -802,20 +819,20 @@ sn updateset create --name "Sprint 42 changes" --description "ITSM form tweaks"
 sn updateset retrieve --update-set-id <remote_sys_id> --auto-preview
 ```
 
-`--auto-preview` kicks off preview automatically after retrieval (saves a round trip). The response includes a `progress_id` — poll it before committing.
+`--auto-preview` kicks off preview automatically after retrieval (saves a round trip). Use `--wait` on each step to block until it completes before proceeding.
 
 ```bash
 # Preview a retrieved Update Set (checks for collisions/errors)
-sn updateset preview <remote_update_set_id>
+sn updateset preview <remote_update_set_id> --wait
 
 # Commit after a clean preview
-sn updateset commit <remote_update_set_id>
+sn updateset commit <remote_update_set_id> --wait
 
 # Commit multiple Update Sets in one call
 sn updateset commit-multiple --ids id1,id2,id3
 
 # Undo an applied Update Set
-sn updateset back-out --update-set-id <sys_id>
+sn updateset back-out --update-set-id <sys_id> --wait
 ```
 
 `back-out` also accepts `--rollback-installs` to undo any app installs that were part of the Update Set.
@@ -825,17 +842,18 @@ sn updateset back-out --update-set-id <sys_id>
 Run Automated Test Framework suites by name or sys_id:
 
 ```bash
-sn atf run --suite-name "Regression Suite"
+sn atf run --suite-name "Regression Suite" --wait
 ```
 ```json
 {
-  "links": {"progress": {"id": "f9e8d7c6b5a4"}},
-  "status": "0",
-  "status_label": "Pending"
+  "status": "2",
+  "status_label": "Complete",
+  "status_message": "Test suite completed",
+  "percent_complete": 100
 }
 ```
 
-Poll the `progress_id`, then fetch results once complete:
+Once the run completes, fetch the detailed results:
 
 ```bash
 # Retrieve test results by the result sys_id (available after completion)
