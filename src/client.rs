@@ -7,10 +7,10 @@ use serde_json::Value;
 use std::time::Duration;
 
 pub struct Client {
-    pub(crate) http: ReqwestClient,
-    pub(crate) base_url: String,
-    pub(crate) username: String,
-    pub(crate) password: String,
+    http: ReqwestClient,
+    base_url: String,
+    username: String,
+    password: String,
 }
 
 impl std::fmt::Debug for Client {
@@ -315,10 +315,10 @@ impl<'a> Paginator<'a> {
         if !status.is_success() {
             return Err(from_http(status, tx, resp));
         }
-        let body: Value = resp
+        let mut body: Value = resp
             .json()
             .map_err(|e| Error::Transport(format!("parse response: {e}")))?;
-        if let Value::Array(records) = body.get("result").cloned().unwrap_or(Value::Array(vec![])) {
+        if let Some(Value::Array(records)) = body.get_mut("result").map(Value::take) {
             for r in records {
                 self.buffer.push_back(r);
             }

@@ -1,4 +1,4 @@
-use crate::cli::table::{bool_opt, build_client, build_profile, format_from_flags, unwrap_or_raw};
+use crate::cli::table::{build_client, build_profile, format_from_flags, unwrap_or_raw};
 use crate::cli::{AtfResultsArgs, AtfRunArgs, GlobalFlags};
 use crate::error::{Error, Result};
 use crate::output::emit_value;
@@ -31,10 +31,10 @@ pub fn run(global: &GlobalFlags, args: AtfRunArgs) -> Result<()> {
     if let Some(v) = args.os_version {
         query.push(("os_version".into(), v));
     }
-    if bool_opt(args.run_in_cloud).is_some() {
+    if args.run_in_cloud {
         query.push(("run_in_cloud".into(), "true".into()));
     }
-    if bool_opt(args.performance_run).is_some() {
+    if args.performance_run {
         query.push(("performance_run".into(), "true".into()));
     }
     let resp = client.post("/api/sn_cicd/testsuite/run", &query, &serde_json::json!({}))?;

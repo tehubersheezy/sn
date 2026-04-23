@@ -20,29 +20,34 @@ pub fn list(global: &GlobalFlags, args: TableListArgs) -> Result<()> {
     let profile = build_profile(global)?;
     let client = build_client(&profile, global.timeout)?;
 
-    if args.all {
-        let q = ListQuery {
-            query: args.query.clone(),
-            fields: args.fields.clone(),
-            page_size: Some(args.setlimit),
-            offset: None, // ignored with --all
-            display_value: args.display_value.map(Into::into),
-            exclude_reference_link: bool_opt(args.exclude_reference_link),
-            suppress_pagination_header: bool_opt(args.suppress_pagination_header),
-            view: args.view.clone(),
-            query_category: args.query_category.clone(),
-            query_no_domain: bool_opt(args.query_no_domain),
-            no_count: bool_opt(args.no_count),
-        };
-        let path = format!("/api/now/table/{}", args.table);
-        let cap = if args.max_records == 0 {
+    let paginate = args.all;
+    let array = args.array;
+    let max_records = args.max_records;
+
+    let q = ListQuery {
+        query: args.query,
+        fields: args.fields,
+        page_size: Some(args.setlimit),
+        offset: if paginate { None } else { args.offset },
+        display_value: args.display_value.map(Into::into),
+        exclude_reference_link: bool_opt(args.exclude_reference_link),
+        suppress_pagination_header: bool_opt(args.suppress_pagination_header),
+        view: args.view,
+        query_category: args.query_category,
+        query_no_domain: bool_opt(args.query_no_domain),
+        no_count: bool_opt(args.no_count),
+    };
+    let path = format!("/api/now/table/{}", args.table);
+
+    if paginate {
+        let cap = if max_records == 0 {
             None
         } else {
-            Some(args.max_records)
+            Some(max_records)
         };
         let it = client.paginate(&path, &q.to_pairs(), cap);
 
-        if args.array {
+        if array {
             let mut out = Vec::new();
             for r in it {
                 out.push(r?);
@@ -67,20 +72,6 @@ pub fn list(global: &GlobalFlags, args: TableListArgs) -> Result<()> {
         return Ok(());
     }
 
-    let q = ListQuery {
-        query: args.query,
-        fields: args.fields,
-        page_size: Some(args.setlimit),
-        offset: args.offset,
-        display_value: args.display_value.map(Into::into),
-        exclude_reference_link: bool_opt(args.exclude_reference_link),
-        suppress_pagination_header: bool_opt(args.suppress_pagination_header),
-        view: args.view,
-        query_category: args.query_category,
-        query_no_domain: bool_opt(args.query_no_domain),
-        no_count: bool_opt(args.no_count),
-    };
-    let path = format!("/api/now/table/{}", args.table);
     let resp: Value = client.get(&path, &q.to_pairs())?;
     let out = unwrap_or_raw(resp, global.output);
     let fmt = format_from_flags(global);

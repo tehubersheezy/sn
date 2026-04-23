@@ -1,4 +1,4 @@
-use crate::cli::table::{bool_opt, build_client, build_profile, format_from_flags, unwrap_or_raw};
+use crate::cli::table::{build_client, build_profile, format_from_flags, unwrap_or_raw};
 use crate::cli::{
     GlobalFlags, UpdateSetBackOutArgs, UpdateSetCommitMultipleArgs, UpdateSetCreateArgs,
     UpdateSetIdArg, UpdateSetRetrieveArgs,
@@ -40,10 +40,10 @@ pub fn retrieve(global: &GlobalFlags, args: UpdateSetRetrieveArgs) -> Result<()>
     if let Some(v) = args.source_instance_id {
         query.push(("source_instance_id".into(), v));
     }
-    if bool_opt(args.auto_preview).is_some() {
+    if args.auto_preview {
         query.push(("auto_preview".into(), "true".into()));
     }
-    if bool_opt(args.cleanup_retrieved).is_some() {
+    if args.cleanup_retrieved {
         query.push(("cleanup_retrieved".into(), "true".into()));
     }
     let resp = client.post(
@@ -100,7 +100,7 @@ pub fn back_out(global: &GlobalFlags, args: UpdateSetBackOutArgs) -> Result<()> 
     let profile = build_profile(global)?;
     let client = build_client(&profile, global.timeout)?;
     let mut query: Vec<(String, String)> = vec![("update_set_id".into(), args.update_set_id)];
-    if bool_opt(args.rollback_installs).is_some() {
+    if args.rollback_installs {
         query.push(("rollback_installs".into(), "true".into()));
     }
     let resp = client.post(

@@ -1,4 +1,4 @@
-use crate::cli::table::{bool_opt, build_client, build_profile, format_from_flags, unwrap_or_raw};
+use crate::cli::table::{build_client, build_profile, format_from_flags, unwrap_or_raw};
 use crate::cli::{AppInstallArgs, AppPublishArgs, AppRollbackArgs, GlobalFlags};
 use crate::error::{Error, Result};
 use crate::output::emit_value;
@@ -22,7 +22,7 @@ pub fn install(global: &GlobalFlags, args: AppInstallArgs) -> Result<()> {
     if let Some(v) = args.version {
         query.push(("version".into(), v));
     }
-    if bool_opt(args.auto_upgrade_base_app).is_some() {
+    if args.auto_upgrade_base_app {
         query.push(("auto_upgrade_base_app".into(), "true".into()));
     }
     if let Some(v) = args.base_app_version {

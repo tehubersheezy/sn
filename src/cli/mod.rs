@@ -165,7 +165,6 @@ pub enum ProfileSub {
     Use { name: String },
 }
 
-// Placeholders; filled in by later tasks.
 #[derive(Subcommand, Debug)]
 pub enum TableSub {
     #[command(about = "List records")]
