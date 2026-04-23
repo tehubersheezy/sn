@@ -321,6 +321,66 @@ SN_PASSWORD=secret \
   sn table list incident --setlimit 1
 ```
 
+Proxy and TLS environment variables:
+
+```bash
+SN_PROXY=http://proxy:8080 sn table list incident
+SN_INSECURE=1 sn table list incident    # skip cert verification
+```
+
+## Proxy and TLS
+
+Route traffic through a proxy:
+
+```bash
+sn --proxy http://proxy.corp:8080 table list incident --setlimit 5
+
+# SOCKS5 proxy
+sn --proxy socks5://proxy:1080 table list incident
+
+# Bypass a configured proxy for one call
+sn --no-proxy table list incident
+```
+
+Disable TLS certificate verification (for dev/test instances with self-signed certs):
+
+```bash
+sn --insecure table list incident
+```
+
+Use a custom CA certificate:
+
+```bash
+sn --ca-cert /path/to/ca.pem table list incident
+sn --proxy-ca-cert /path/to/proxy-ca.pem --proxy http://proxy:8080 table list incident
+```
+
+All proxy/TLS settings can be set per-profile in `config.toml`:
+
+```toml
+[profiles.dev]
+instance = "dev.example.com"
+proxy = "http://proxy.corp:8080"
+no_proxy = "localhost,127.0.0.1"
+insecure = false
+ca_cert = "/etc/ssl/custom-ca.pem"
+proxy_ca_cert = "/etc/ssl/proxy-ca.pem"
+```
+
+Proxy credentials go in `credentials.toml` (since they're secrets):
+
+```toml
+[profiles.dev]
+username = "sn-user"
+password = "sn-pass"
+proxy_username = "proxy-user"
+proxy_password = "proxy-pass"
+```
+
+Environment variables: `SN_PROXY`, `SN_NO_PROXY`, `SN_INSECURE=1`, `SN_CA_CERT`, `SN_PROXY_CA_CERT`.
+
+Precedence: `--proxy` flag > `SN_PROXY` env > profile config (same for all settings).
+
 ## Debugging
 
 ```bash
