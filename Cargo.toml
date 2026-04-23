@@ -26,7 +26,6 @@ directories = "5"
 rpassword = "7"
 thiserror = "1"
 is-terminal = "0.4"
-backoff = "0.4"
 url = "2"
 
 [dev-dependencies]

@@ -261,7 +261,7 @@ sn introspect | jq '.subcommands[] | {name, about}'
 
 | Verb | stdout |
 |---|---|
-| `table list` | JSON array of records |
+| `table list` | JSON array of records (JSONL with `--all`) |
 | `table get` / `create` / `update` / `replace` | Single record object |
 | `table delete` | Nothing (empty) |
 | `schema tables` / `columns` / `choices` | JSON array |
@@ -307,6 +307,7 @@ Every ServiceNow `sysparm_*` parameter has both a friendly name and a raw alias:
 | `--suppress-auto-sys-field` | `--sysparm-suppress-auto-sys-field` | Boolean (writes) |
 | `--query-no-domain` | `--sysparm-query-no-domain` | Boolean |
 | `--no-count` | `--sysparm-no-count` | Boolean |
+| `--instance-override` | (CLI only) | Override instance URL for this invocation |
 
 ## Configuration
 

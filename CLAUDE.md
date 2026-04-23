@@ -27,14 +27,14 @@ Integration tests use `wiremock` to mock ServiceNow and `assert_cmd` to drive th
 ```
 src/
   main.rs           → parse Cli, set verbosity, dispatch, map Error → ExitCode
-  lib.rs            → re-exports all modules for integration tests
+  lib.rs            → pub mod {body, cli, client, config, error, observability, output, query} — add new modules here too
   error.rs          → Error enum (5 variants), exit_code(), to_stderr_json()
   output.rs         → emit_value (JSON), emit_jsonl (JSONL), emit_error (stderr)
   config.rs         → Config/Credentials TOML types, load/save, resolve_profile()
   client.rs         → reqwest blocking client (proxy/TLS), Paginator iterator
   query.rs          → ListQuery/GetQuery/WriteQuery/DeleteQuery → Vec<(String,String)>
   body.rs           → --data / --field parsing into serde_json::Value
-  observability.rs  → global AtomicU8 verbosity, log_request/response/headers/body
+  observability.rs  → global AtomicU8 verbosity, log helpers (set_level called in main; log_request/response not yet wired into client)
   cli/
     mod.rs          → Cli struct, GlobalFlags, all Subcommand enums + arg structs
     init.rs         → sn init (interactive profile setup + credential verification)
@@ -71,7 +71,7 @@ CICD operations (`app`, `updateset`, `atf`) are async — they return a `progres
 
 ### Profile resolution precedence
 
-`--profile` flag > `SN_PROFILE` env > `default_profile` in config.toml > literal "default" profile. Per-field overrides: `SN_INSTANCE`, `SN_USERNAME`, `SN_PASSWORD` override the resolved profile's values.
+`--profile` flag > `SN_PROFILE` env > `default_profile` in config.toml > literal "default" profile. Per-field overrides: `SN_INSTANCE`, `SN_USERNAME`, `SN_PASSWORD` override the resolved profile's values. `--instance-override URL` overrides the selected profile's instance URL for a single invocation (useful for one-off commands against a different instance without switching profiles).
 
 ### Proxy and TLS
 
@@ -99,7 +99,7 @@ Resolved via `directories::ProjectDirs::from("", "", "sn")`:
 
 ### Pagination (--all)
 
-`client.paginate()` returns a `Paginator` iterator that follows `Link: rel="next"` headers. Default output is JSONL (one record per line); `--array` buffers into a JSON array. `--max-records` caps total output. The page size is fixed at whatever `--setlimit` sets (default 1000).
+`client.paginate()` returns a `Paginator` iterator that follows `Link: rel="next"` headers. Default output is JSONL (one record per line); `--array` buffers into a JSON array. `--max-records` caps total output. The page size is fixed at whatever `--setlimit` sets (default 1000). `--max-records` caps total output (default 100,000; 0 = unlimited).
 
 ### Schema endpoints (undocumented)
 

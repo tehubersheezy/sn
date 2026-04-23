@@ -4,6 +4,16 @@ Date: 2026-04-22
 Status: Approved for implementation
 Audience: Implementing engineers, the planning agent that will turn this into an implementation plan, and future maintainers needing the durable record of design decisions.
 
+> **Note:** This spec was written before implementation and has not been updated to reflect the final state. Key differences from the shipped code:
+> - Retry/backoff (`--no-retry`, `RetryPolicy`) was implemented then removed — the CLI makes single requests with no retry.
+> - `--page-size` was renamed to `--setlimit` (with `--page-size`, `--limit`, `--sysparm-limit` as aliases).
+> - `--output json|raw` is actually `--output default|raw` in the CLI.
+> - `-vv` shows response headers only (not request headers).
+> - CICD commands (`app`, `updateset`, `atf`, `progress`, `aggregate`, `scores`) were added post-spec.
+> - The `backoff` crate dependency is unused.
+> 
+> For current documentation, see `CLAUDE.md` and `docs/agent-guide.md`.
+
 ## 1. Overview and guiding principle
 
 `sn` is a single-binary Rust CLI that wraps the ServiceNow Table API. The product target is "agent-forward" use: the primary consumer is an LLM-driven agent (or a script written by one), with a human operator as a secondary but fully supported audience.

@@ -736,7 +736,7 @@ The final progress result shape emitted by `--wait`:
 }
 ```
 
-`status` codes: `0` = Pending, `1` = Running, `2` = Complete, `3` = Failed, `4` = Cancelled.
+`status` codes: `0` = Pending, `1` = Running, `2` = Successful, `3` = Failed, `4` = Cancelled.
 
 **Without `--wait` (manual polling — use for already-running operations):**
 
@@ -1036,13 +1036,13 @@ Rules of thumb for agents:
 
 ## Building tools/MCP servers on top of `sn`
 
-`sn introspect --json` emits the complete command tree — every subcommand,
+`sn introspect` emits the complete command tree — every subcommand,
 flag, value type, and help text — as machine-readable JSON. This is the
 canonical way to auto-generate MCP tool definitions, OpenAI function-call
 schemas, or any other structured wrapper.
 
 ```bash
-sn introspect --json | jq '.commands[] | {name, summary}'
+sn introspect | jq '.commands[] | {name, summary}'
 ```
 ```json
 {"name": "table list",     "summary": "List records from a table"}
@@ -1160,7 +1160,7 @@ sn table replace TABLE SYS_ID (--data ...|--field K=V ...)
 
 sn table delete TABLE SYS_ID [--yes] [--query-no-domain]
 
-sn introspect --json
+sn introspect
 
 Global flags (any command):
   --profile NAME          select credential profile
