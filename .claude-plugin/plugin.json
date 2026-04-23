@@ -1,0 +1,14 @@
+{
+  "name": "sn",
+  "description": "ServiceNow CLI wrapper — table CRUD, change management, CMDB, attachments, service catalog, import sets, CI reconciliation, CICD, aggregates, and schema discovery",
+  "version": "1.0.0",
+  "author": {
+    "name": "Abey Ahmad"
+  },
+  "homepage": "https://github.com/tehubersheezy/sn",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tehubersheezy/sn.git"
+  },
+  "license": "MIT OR Apache-2.0"
+}
