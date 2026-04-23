@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this project is
 
-`sn` is a single-binary Rust CLI that wraps the ServiceNow Table API and two undocumented schema-discovery endpoints. It is designed to be invoked by LLM agents — stable JSON on stdout, structured JSON errors on stderr, deterministic exit codes, no interactive surprises unless explicitly opted into (`sn init`).
+`sn` is a single-binary Rust CLI that wraps ServiceNow's REST APIs: Table API, Change Management, Attachment, CMDB, Import Set, Service Catalog, Identification & Reconciliation, CICD (App Repository, Update Sets, ATF), Aggregate, Performance Analytics, and two undocumented schema-discovery endpoints. Designed for LLM agents — stable JSON on stdout, structured JSON errors on stderr, deterministic exit codes, no interactive surprises unless explicitly opted into (`sn init`).
 
 ## Build, test, lint
 
@@ -49,11 +49,44 @@ src/
     atf.rs          → sn atf run/results (Automated Test Framework)
     aggregate.rs    → sn aggregate (server-side stats/counts/averages on table data)
     scores.rs       → sn scores list/favorite/unfavorite (Performance Analytics scorecards)
+    change.rs       → sn change list/get/create/update/delete + task/ci/conflict/nextstates/approvals/risk/schedule/models/templates
+    attachment.rs   → sn attachment list/get/upload/download/delete (binary file support)
+    cmdb.rs         → sn cmdb list/get/create/update/replace/meta + relation add/delete
+    import.rs       → sn import create/bulk/get (staging table imports)
+    catalog.rs      → sn catalog list/get/categories/items/order/cart/checkout/wishlist
+    identify.rs     → sn identify create-update/query + enhanced variants (CI reconciliation)
 ```
 
 ### CICD async pattern
 
 CICD operations (`app`, `updateset`, `atf`) are async — they return a `progress_id` immediately and the operation runs in the background on the ServiceNow instance. The preferred way to wait for completion is `--wait`, which blocks the command until the operation succeeds or fails (polling `GET /api/sn_cicd/progress/{id}` every 2 seconds) and then emits the final progress result — eliminating the need for manual `sn progress` polling. Without `--wait`, the command returns immediately with the initial progress object. For operations already in flight, poll manually with `sn progress <progress_id>`. The progress response includes a `state` field (`running`, `complete`, `failed`) and a `percentComplete` indicator. All three command groups share the same polling mechanism via `cli/progress.rs`.
+
+### Client binary methods
+
+`client.rs` includes three methods beyond the standard JSON HTTP verbs for the Attachment API:
+- `upload_file(path, query, body: Vec<u8>, content_type)` — POST raw binary with custom Content-Type
+- `download_file(path) -> (Vec<u8>, Option<String>)` — GET binary response, returns bytes + Content-Type
+- `delete_json(path, query) -> Value` — DELETE that expects a JSON response body (vs `delete()` which returns `()`)
+
+### Change Management API
+
+Uses `/api/sn_chg_rest/change` with type-specific sub-paths (`/normal`, `/emergency`, `/standard`). The `--type` flag routes to the correct endpoint. Standard change creation requires `--template <id>`. Supports nested sub-resources: tasks (`/task`), CIs (`/ci`), conflicts (`/conflict`), plus state-related operations (nextstates, approvals, risk, schedule).
+
+### Service Catalog API
+
+Uses `/api/sn_sc/servicecatalog`. Supports the full shopping cart workflow: browse catalogs/categories/items → add to cart → checkout/submit order. Also supports direct ordering via `order` (bypasses cart). Item variables endpoint exposes the form fields required before ordering.
+
+### CMDB APIs
+
+Instance API (`/api/now/cmdb/instance/{className}`) provides CRUD + relation management on any CMDB class. The class name is a positional arg. Meta API (`/api/now/cmdb/meta/{className}`) returns schema metadata for a class. Both are combined under the `sn cmdb` command group.
+
+### Import Set API
+
+Uses `/api/now/import/{stagingTableName}`. Supports single record creation and bulk insert via `insertMultiple`. The staging table name is a positional arg.
+
+### Identification & Reconciliation API
+
+Uses `/api/now/identifyreconcile`. POST-only pattern for CI creation/updates and read-only queries. Enhanced variants accept `--options` for partial payload/commit support. All operations take `--data` for the items payload.
 
 ### Key data flow
 

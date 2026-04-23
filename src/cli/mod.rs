@@ -1,7 +1,13 @@
 pub mod aggregate;
 pub mod app;
 pub mod atf;
+pub mod attachment;
 pub mod auth;
+pub mod catalog;
+pub mod change;
+pub mod cmdb;
+pub mod identify;
+pub mod import;
 pub mod init;
 pub mod introspect;
 pub mod profile;
@@ -136,6 +142,36 @@ pub enum Command {
     Atf {
         #[command(subcommand)]
         sub: AtfSub,
+    },
+    /// Change Management operations (normal, emergency, standard).
+    Change {
+        #[command(subcommand)]
+        sub: ChangeSub,
+    },
+    /// Attachment operations (upload, download, list, delete).
+    Attachment {
+        #[command(subcommand)]
+        sub: AttachmentSub,
+    },
+    /// CMDB Instance and Meta operations.
+    Cmdb {
+        #[command(subcommand)]
+        sub: CmdbSub,
+    },
+    /// Import Set operations (staging table imports).
+    Import {
+        #[command(subcommand)]
+        sub: ImportSub,
+    },
+    /// Service Catalog operations (catalogs, items, cart, ordering).
+    Catalog {
+        #[command(subcommand)]
+        sub: CatalogSub,
+    },
+    /// Identification and Reconciliation (CI create/update/query).
+    Identify {
+        #[command(subcommand)]
+        sub: IdentifySub,
     },
 }
 
@@ -807,6 +843,619 @@ impl SortDir {
             Self::Desc => "DESC",
         }
     }
+}
+
+// ── Change Management ────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum ChangeSub {
+    /// List change requests.
+    List(ChangeListArgs),
+    /// Get a change request by sys_id.
+    Get(ChangeGetArgs),
+    /// Create a change request.
+    Create(ChangeCreateArgs),
+    /// Update (PATCH) a change request.
+    Update(ChangeUpdateArgs),
+    /// Delete a change request.
+    Delete(ChangeDeleteArgs),
+    /// Get valid next states for a change.
+    Nextstates(ChangeSysIdArg),
+    /// Update approval state on a change.
+    Approvals(ChangeApprovalsArgs),
+    /// Update the risk assessment of a change.
+    Risk(ChangeRiskArgs),
+    /// Get the schedule for a change.
+    Schedule(ChangeSysIdArg),
+    /// Change task operations.
+    Task {
+        #[command(subcommand)]
+        sub: ChangeTaskSub,
+    },
+    /// CI relationship operations on a change.
+    Ci {
+        #[command(subcommand)]
+        sub: ChangeCiSub,
+    },
+    /// Conflict operations on a change.
+    Conflict {
+        #[command(subcommand)]
+        sub: ChangeConflictSub,
+    },
+    /// List change models.
+    Models(ChangeOptionalIdArg),
+    /// List standard change templates.
+    Templates(ChangeOptionalIdArg),
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+#[value(rename_all = "lowercase")]
+pub enum ChangeType {
+    Normal,
+    Emergency,
+    Standard,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeListArgs {
+    /// Filter by change type.
+    #[arg(long, value_enum)]
+    pub r#type: Option<ChangeType>,
+    #[arg(long, alias = "sysparm-query")]
+    pub query: Option<String>,
+    #[arg(long, alias = "sysparm-fields")]
+    pub fields: Option<String>,
+    #[arg(long, alias = "sysparm-limit", alias = "limit", default_value_t = 1000)]
+    pub setlimit: u32,
+    #[arg(long, alias = "sysparm-offset")]
+    pub offset: Option<u32>,
+    #[arg(long, alias = "sysparm-display-value", value_enum)]
+    pub display_value: Option<DisplayValueArg>,
+    #[arg(long, alias = "sysparm-exclude-reference-link")]
+    pub exclude_reference_link: bool,
+    #[arg(long, alias = "sysparm-view")]
+    pub view: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeGetArgs {
+    pub sys_id: String,
+    /// Get a specific change type (uses type-specific endpoint).
+    #[arg(long, value_enum)]
+    pub r#type: Option<ChangeType>,
+    #[arg(long, alias = "sysparm-fields")]
+    pub fields: Option<String>,
+    #[arg(long, alias = "sysparm-display-value", value_enum)]
+    pub display_value: Option<DisplayValueArg>,
+    #[arg(long, alias = "sysparm-exclude-reference-link")]
+    pub exclude_reference_link: bool,
+    #[arg(long, alias = "sysparm-view")]
+    pub view: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeCreateArgs {
+    /// Change type: normal, emergency, or standard.
+    #[arg(long, value_enum, default_value_t = ChangeType::Normal)]
+    pub r#type: ChangeType,
+    /// Standard change template sys_id (required for --type standard).
+    #[arg(long)]
+    pub template: Option<String>,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+    #[arg(long, alias = "sysparm-fields")]
+    pub fields: Option<String>,
+    #[arg(long, alias = "sysparm-display-value", value_enum)]
+    pub display_value: Option<DisplayValueArg>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeUpdateArgs {
+    pub sys_id: String,
+    #[arg(long, value_enum)]
+    pub r#type: Option<ChangeType>,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+    #[arg(long, alias = "sysparm-fields")]
+    pub fields: Option<String>,
+    #[arg(long, alias = "sysparm-display-value", value_enum)]
+    pub display_value: Option<DisplayValueArg>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeDeleteArgs {
+    pub sys_id: String,
+    #[arg(long, value_enum)]
+    pub r#type: Option<ChangeType>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeSysIdArg {
+    pub sys_id: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeOptionalIdArg {
+    pub sys_id: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeApprovalsArgs {
+    pub sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeRiskArgs {
+    pub sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ChangeTaskSub {
+    /// List tasks for a change.
+    List(ChangeTaskListArgs),
+    /// Get a specific change task.
+    Get(ChangeTaskGetArgs),
+    /// Create a task on a change.
+    Create(ChangeTaskCreateArgs),
+    /// Update a change task (PATCH).
+    Update(ChangeTaskUpdateArgs),
+    /// Delete a change task.
+    Delete(ChangeTaskDeleteArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeTaskListArgs {
+    pub change_sys_id: String,
+    #[arg(long, alias = "sysparm-fields")]
+    pub fields: Option<String>,
+    #[arg(long, alias = "sysparm-limit", alias = "limit", default_value_t = 100)]
+    pub setlimit: u32,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeTaskGetArgs {
+    pub change_sys_id: String,
+    pub task_sys_id: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeTaskCreateArgs {
+    pub change_sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeTaskUpdateArgs {
+    pub change_sys_id: String,
+    pub task_sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeTaskDeleteArgs {
+    pub change_sys_id: String,
+    pub task_sys_id: String,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ChangeCiSub {
+    /// List CIs associated with a change.
+    List(ChangeSysIdArg),
+    /// Add a CI to a change.
+    Add(ChangeCiAddArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeCiAddArgs {
+    pub change_sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ChangeConflictSub {
+    /// Get conflicts for a change.
+    Get(ChangeSysIdArg),
+    /// Add a conflict to a change.
+    Add(ChangeConflictAddArgs),
+    /// Remove conflicts from a change.
+    Remove(ChangeSysIdArg),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeConflictAddArgs {
+    pub sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+// ── Attachment ───────────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum AttachmentSub {
+    /// List attachments with optional query filter.
+    List(AttachmentListArgs),
+    /// Get attachment metadata by sys_id.
+    Get(AttachmentGetArgs),
+    /// Upload a file as an attachment.
+    Upload(AttachmentUploadArgs),
+    /// Download attachment content to a file or stdout.
+    Download(AttachmentDownloadArgs),
+    /// Delete an attachment.
+    Delete(AttachmentDeleteArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct AttachmentListArgs {
+    #[arg(long, alias = "sysparm-query")]
+    pub query: Option<String>,
+    #[arg(long, alias = "sysparm-limit", alias = "limit", default_value_t = 100)]
+    pub setlimit: u32,
+    #[arg(long, alias = "sysparm-offset")]
+    pub offset: Option<u32>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct AttachmentGetArgs {
+    pub sys_id: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct AttachmentUploadArgs {
+    /// Table to attach to (e.g. `incident`).
+    #[arg(long, required = true)]
+    pub table: String,
+    /// sys_id of the record to attach to.
+    #[arg(long, required = true)]
+    pub record: String,
+    /// Path to the file to upload.
+    #[arg(long, required = true)]
+    pub file: String,
+    /// File name override (defaults to the file's basename).
+    #[arg(long)]
+    pub file_name: Option<String>,
+    /// Content type (auto-detected if not specified).
+    #[arg(long)]
+    pub content_type: Option<String>,
+    /// Encryption context sys_id.
+    #[arg(long)]
+    pub encryption_context: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct AttachmentDownloadArgs {
+    pub sys_id: String,
+    /// Output file path (writes to stdout if not specified).
+    #[arg(long, short)]
+    pub output: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct AttachmentDeleteArgs {
+    pub sys_id: String,
+}
+
+// ── CMDB ─────────────────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum CmdbSub {
+    /// List CI records for a CMDB class.
+    List(CmdbListArgs),
+    /// Get a CI record with relations.
+    Get(CmdbGetArgs),
+    /// Create a CI record.
+    Create(CmdbCreateArgs),
+    /// Update a CI record (PATCH).
+    Update(CmdbUpdateArgs),
+    /// Replace a CI record (PUT).
+    Replace(CmdbReplaceArgs),
+    /// Get metadata for a CMDB class.
+    Meta(CmdbMetaArgs),
+    /// Relation operations on a CI.
+    Relation {
+        #[command(subcommand)]
+        sub: CmdbRelationSub,
+    },
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CmdbListArgs {
+    /// CMDB class name (e.g. `cmdb_ci_server`).
+    pub class: String,
+    #[arg(long, alias = "sysparm-query")]
+    pub query: Option<String>,
+    #[arg(long, alias = "sysparm-limit", alias = "limit", default_value_t = 1000)]
+    pub setlimit: u32,
+    #[arg(long, alias = "sysparm-offset")]
+    pub offset: Option<u32>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CmdbGetArgs {
+    pub class: String,
+    pub sys_id: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CmdbCreateArgs {
+    pub class: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CmdbUpdateArgs {
+    pub class: String,
+    pub sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CmdbReplaceArgs {
+    pub class: String,
+    pub sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CmdbMetaArgs {
+    pub class: String,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum CmdbRelationSub {
+    /// Create a relation on a CI.
+    Add(CmdbRelationAddArgs),
+    /// Delete a relation from a CI.
+    Delete(CmdbRelationDeleteArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CmdbRelationAddArgs {
+    pub class: String,
+    pub sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CmdbRelationDeleteArgs {
+    pub class: String,
+    pub sys_id: String,
+    /// sys_id of the relation to delete.
+    pub rel_sys_id: String,
+}
+
+// ── Import Set ───────────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum ImportSub {
+    /// Insert a single record into a staging table.
+    Create(ImportCreateArgs),
+    /// Insert multiple records into a staging table.
+    Bulk(ImportBulkArgs),
+    /// Retrieve an import set record.
+    Get(ImportGetArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ImportCreateArgs {
+    /// Staging table name.
+    pub staging_table: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ImportBulkArgs {
+    /// Staging table name.
+    pub staging_table: String,
+    /// JSON array of records, @file, or @- for stdin.
+    #[arg(long, required = true)]
+    pub data: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ImportGetArgs {
+    /// Staging table name.
+    pub staging_table: String,
+    /// sys_id of the import set record.
+    pub sys_id: String,
+}
+
+// ── Service Catalog ──────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum CatalogSub {
+    /// List service catalogs.
+    List(CatalogListArgs),
+    /// Get a specific catalog.
+    Get(CatalogGetArgs),
+    /// List categories for a catalog.
+    Categories(CatalogCategoriesArgs),
+    /// Get a specific category.
+    Category(CatalogCategoryArgs),
+    /// List catalog items.
+    Items(CatalogItemsArgs),
+    /// Get a specific catalog item.
+    Item(CatalogItemArgs),
+    /// Get variables for a catalog item.
+    ItemVariables(CatalogItemArgs),
+    /// Order a catalog item immediately.
+    Order(CatalogOrderArgs),
+    /// Add a catalog item to cart.
+    AddToCart(CatalogOrderArgs),
+    /// Get the current cart.
+    Cart,
+    /// Update a cart item.
+    CartUpdate(CatalogCartUpdateArgs),
+    /// Remove an item from cart.
+    CartRemove(CatalogCartItemArgs),
+    /// Empty the cart.
+    CartEmpty(CatalogCartEmptyArgs),
+    /// Check out the cart.
+    Checkout,
+    /// Submit the cart order.
+    SubmitOrder,
+    /// Get the wishlist.
+    Wishlist,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CatalogListArgs {
+    /// Search text for catalogs.
+    #[arg(long, alias = "sysparm-text")]
+    pub text: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CatalogGetArgs {
+    pub sys_id: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CatalogCategoriesArgs {
+    /// Catalog sys_id.
+    pub catalog_sys_id: String,
+    #[arg(long, alias = "sysparm-limit", alias = "limit", default_value_t = 100)]
+    pub setlimit: u32,
+    #[arg(long, alias = "sysparm-offset")]
+    pub offset: Option<u32>,
+    /// Show only top-level categories.
+    #[arg(long, alias = "sysparm-top-level-only")]
+    pub top_level_only: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CatalogCategoryArgs {
+    pub sys_id: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CatalogItemsArgs {
+    /// Search text for items.
+    #[arg(long, alias = "sysparm-text")]
+    pub text: Option<String>,
+    /// Filter by category sys_id.
+    #[arg(long, alias = "sysparm-category")]
+    pub category: Option<String>,
+    /// Filter by catalog sys_id.
+    #[arg(long, alias = "sysparm-catalog")]
+    pub catalog: Option<String>,
+    /// Filter by type (e.g. `record_producer`).
+    #[arg(long, alias = "sysparm-type")]
+    pub item_type: Option<String>,
+    #[arg(long, alias = "sysparm-limit", alias = "limit", default_value_t = 100)]
+    pub setlimit: u32,
+    #[arg(long, alias = "sysparm-offset")]
+    pub offset: Option<u32>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CatalogItemArgs {
+    pub sys_id: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CatalogOrderArgs {
+    pub sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CatalogCartUpdateArgs {
+    pub cart_item_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CatalogCartItemArgs {
+    pub cart_item_id: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CatalogCartEmptyArgs {
+    /// Cart sys_id.
+    pub sys_id: String,
+}
+
+// ── Identification & Reconciliation ──────────────────────────────────────────
+
+#[derive(Subcommand, Debug)]
+pub enum IdentifySub {
+    /// Create or update a CI (POST /api/now/identifyreconcile).
+    CreateUpdate(IdentifyArgs),
+    /// Identify a CI without modifying (POST /api/now/identifyreconcile/query).
+    Query(IdentifyArgs),
+    /// Create or update with enhanced options.
+    CreateUpdateEnhanced(IdentifyEnhancedArgs),
+    /// Identify with enhanced options.
+    QueryEnhanced(IdentifyEnhancedArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct IdentifyArgs {
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+    /// Data source identifier.
+    #[arg(long)]
+    pub data_source: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct IdentifyEnhancedArgs {
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+    /// Data source identifier.
+    #[arg(long)]
+    pub data_source: Option<String>,
+    /// Comma-separated key:value options (e.g. `partial_payload:true,partial_commits:true`).
+    #[arg(long)]
+    pub options: Option<String>,
 }
 
 #[cfg(test)]

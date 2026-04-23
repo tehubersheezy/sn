@@ -5,14 +5,14 @@ to read, create, update, and delete ServiceNow records via the `sn` CLI.
 
 ## What `sn` is
 
-`sn` is a Rust CLI that wraps the ServiceNow Table API (`/api/now/table/...`)
-and two schema-discovery endpoints (`/api/now/doc/table/schema` for tables and
-`/api/now/ui/meta/{table}` for column/choice/reference metadata). It speaks
+`sn` is a Rust CLI that wraps ServiceNow's REST APIs: Table API, Change
+Management, Attachment, CMDB (Instance + Meta), Import Set, Service Catalog,
+Identification & Reconciliation, CICD (App Repository, Update Sets, ATF),
+Aggregate, Performance Analytics, and two schema-discovery endpoints. It speaks
 JSON on stdout and structured JSON errors on stderr, uses stable exit codes,
-and exposes schema and choice lookups
-so an agent can discover a table's shape on demand. Assume zero prior
-ServiceNow knowledge: every operation below is runnable end-to-end from a
-cold start after `sn init`.
+and exposes schema and choice lookups so an agent can discover a table's shape
+on demand. Assume zero prior ServiceNow knowledge: every operation below is
+runnable end-to-end from a cold start after `sn init`.
 
 ## Output contract (read this first)
 
@@ -45,6 +45,25 @@ This is the part you must internalize before issuing any command.
 | `progress` | Progress status object (`status_label`, `percent_complete`, `status_message`) |
 | `scores list` | JSON array of scorecard objects |
 | `scores favorite` / `unfavorite` | Updated scorecard object |
+| `change list` | JSON array of change records |
+| `change get` / `create` / `update` | Single change record object |
+| `change delete` | No stdout (empty) |
+| `change nextstates` / `schedule` / `models` / `templates` | JSON object or array |
+| `change task list` / `ci list` / `conflict get` | JSON array |
+| `attachment list` | JSON array of attachment metadata |
+| `attachment get` / `upload` | Single attachment metadata object |
+| `attachment download` | Binary content (raw bytes to stdout or file via `--output`) |
+| `attachment delete` | No stdout (empty) |
+| `cmdb list` | JSON array of CI records |
+| `cmdb get` / `create` / `update` / `replace` | Single CI record with relations |
+| `cmdb meta` | Class metadata object |
+| `import create` / `bulk` | Import result array (includes transform results) |
+| `import get` | Single import set record |
+| `catalog list` / `items` / `categories` | JSON array |
+| `catalog get` / `item` / `category` / `item-variables` | Single object |
+| `catalog order` / `checkout` / `submit-order` | Order/request result object |
+| `catalog cart` / `wishlist` | Cart/wishlist object |
+| `identify create-update` / `query` | Reconciliation result with items array |
 
 **Opt-in raw mode.** `--output raw` preserves the full ServiceNow response
 envelope instead of unwrapping:
@@ -938,6 +957,347 @@ sn scores favorite <uuid>
 sn scores unfavorite <uuid>
 ```
 
+## Change Management
+
+`sn change` wraps the Change Management API (`/api/sn_chg_rest/change`). Changes have three types: **normal**, **emergency**, and **standard**. Use `--type` to target a type-specific endpoint; omit for the generic endpoint.
+
+### CRUD
+
+```bash
+# List normal changes, filtered
+sn change list --type normal --query "state=1^priority<=2" --setlimit 10
+```
+```json
+[
+  {"sys_id": "chg001", "number": "CHG0010001", "type": "normal", "state": "1"}
+]
+```
+
+```bash
+# Get a specific change
+sn change get chg001 --type normal
+```
+
+```bash
+# Create a normal change
+sn change create --type normal \
+  --field short_description="DB migration" \
+  --field category=software
+```
+
+```bash
+# Create a standard change from a template
+sn change create --type standard --template <template_sys_id>
+```
+
+Standard changes **require** `--template`. Emergency changes need only `--type emergency`.
+
+```bash
+# Update (PATCH)
+sn change update chg001 --field state=2
+
+# Delete
+sn change delete chg001
+```
+
+### Workflow operations
+
+```bash
+# Valid state transitions — call this before updating state to avoid errors
+sn change nextstates chg001
+```
+```json
+[
+  {"value": "-4", "label": "Scheduled"},
+  {"value": "3", "label": "Implement"}
+]
+```
+
+```bash
+# Update approvals
+sn change approvals chg001 --field approval="approved"
+
+# Update risk assessment
+sn change risk chg001 --data '{"risk_value": "moderate"}'
+
+# View schedule
+sn change schedule chg001
+
+# Browse models and standard templates
+sn change models
+sn change templates
+```
+
+### Sub-resources (tasks, CIs, conflicts)
+
+```bash
+# Change tasks
+sn change task list <change_sys_id>
+sn change task create <change_sys_id> --field short_description="Pre-check"
+sn change task update <change_sys_id> <task_sys_id> --field state=2
+sn change task delete <change_sys_id> <task_sys_id>
+
+# CIs affected by a change
+sn change ci list <change_sys_id>
+sn change ci add <change_sys_id> --data '{"cmdb_ci_sys_id": "<ci_id>"}'
+
+# Conflicts
+sn change conflict get <sys_id>
+sn change conflict add <sys_id> --data '{"..."}'
+sn change conflict remove <sys_id>
+```
+
+## Attachments
+
+`sn attachment` wraps the Attachment API (`/api/now/attachment`). Supports binary upload/download for any ServiceNow record.
+
+```bash
+# List attachments on incidents
+sn attachment list --query "table_name=incident" --setlimit 20
+```
+```json
+[
+  {
+    "sys_id": "att001",
+    "file_name": "screenshot.png",
+    "table_name": "incident",
+    "table_sys_id": "inc001",
+    "size_bytes": "245760",
+    "content_type": "image/png"
+  }
+]
+```
+
+```bash
+# Get metadata for a specific attachment
+sn attachment get att001
+
+# Upload a file to a record
+sn attachment upload --table incident --record <record_sys_id> --file ./report.pdf
+```
+```json
+{
+  "sys_id": "att002",
+  "file_name": "report.pdf",
+  "table_name": "incident",
+  "table_sys_id": "inc001",
+  "size_bytes": "102400",
+  "content_type": "application/pdf"
+}
+```
+
+Content type is auto-detected from file extension; override with `--content-type`.
+
+```bash
+# Download to a file
+sn attachment download att001 --output ./downloaded.png
+```
+```json
+{"path": "./downloaded.png", "size": 245760}
+```
+
+```bash
+# Download to stdout (pipe to another tool)
+sn attachment download att001 > file.bin
+
+# Delete
+sn attachment delete att001
+```
+
+## CMDB
+
+`sn cmdb` combines the CMDB Instance API (`/api/now/cmdb/instance/{class}`) and Meta API (`/api/now/cmdb/meta/{class}`). The CMDB class name (e.g. `cmdb_ci_server`, `cmdb_ci_linux_server`) is always the first positional argument.
+
+```bash
+# List CIs of a class
+sn cmdb list cmdb_ci_server --query "operational_status=1" --setlimit 10
+```
+```json
+[
+  {"sys_id": "ci001", "name": "web-server-01", "ip_address": "10.0.1.50"}
+]
+```
+
+```bash
+# Get a CI (includes relations)
+sn cmdb get cmdb_ci_server ci001
+
+# Create a CI
+sn cmdb create cmdb_ci_server \
+  --field name=web-server-02 \
+  --field ip_address=10.0.1.51
+
+# Update (PATCH)
+sn cmdb update cmdb_ci_server ci001 --field operational_status=2
+
+# Replace (PUT — full overwrite)
+sn cmdb replace cmdb_ci_server ci001 --data @ci-full.json
+
+# Class metadata (schema, available fields)
+sn cmdb meta cmdb_ci_server
+```
+
+### Relations
+
+```bash
+# Create a relation between CIs
+sn cmdb relation add cmdb_ci_server ci001 \
+  --data '{"type": "<rel_type_sys_id>", "target": "<target_ci_sys_id>"}'
+
+# Delete a relation
+sn cmdb relation delete cmdb_ci_server ci001 <rel_sys_id>
+```
+
+## Import Sets
+
+`sn import` wraps the Import Set API (`/api/now/import/{stagingTable}`). Used for loading data through transform maps.
+
+```bash
+# Insert a single record into a staging table
+sn import create u_my_staging_table --field u_name="Server-01" --field u_ip="10.0.1.1"
+```
+```json
+[
+  {
+    "sys_id": "imp001",
+    "table": "cmdb_ci_server",
+    "display_name": "web-server-01",
+    "status": "inserted",
+    "sys_import_set": "ISET001"
+  }
+]
+```
+
+The result includes transform map outcomes — `status` will be `inserted`, `updated`, `skipped`, or `error`.
+
+```bash
+# Bulk insert multiple records
+sn import bulk u_my_staging_table --data '[
+  {"u_name": "Server-01", "u_ip": "10.0.1.1"},
+  {"u_name": "Server-02", "u_ip": "10.0.1.2"}
+]'
+
+# Or from file
+sn import bulk u_my_staging_table --data @records.json
+
+# Retrieve an import set record
+sn import get u_my_staging_table imp001
+```
+
+## Service Catalog
+
+`sn catalog` wraps the Service Catalog API (`/api/sn_sc/servicecatalog`). Supports browsing, searching, cart management, and ordering.
+
+### Browsing
+
+```bash
+# List catalogs
+sn catalog list
+sn catalog list --text "IT"   # search by keyword
+
+# Get a specific catalog
+sn catalog get <catalog_sys_id>
+
+# List categories in a catalog
+sn catalog categories <catalog_sys_id>
+sn catalog categories <catalog_sys_id> --top-level-only
+
+# Get a category
+sn catalog category <category_sys_id>
+
+# Search items
+sn catalog items --text "laptop" --catalog <catalog_id>
+sn catalog items --category <category_id> --setlimit 20
+
+# Get item details and required variables (form fields)
+sn catalog item <item_sys_id>
+sn catalog item-variables <item_sys_id>
+```
+
+### Ordering
+
+Two patterns: **order now** (immediate, bypasses cart) or **cart workflow**.
+
+```bash
+# Order immediately
+sn catalog order <item_sys_id> --data '{"sysparm_quantity": "1", "variables": {"urgency": "high"}}'
+```
+```json
+{
+  "request_number": "REQ0010001",
+  "request_id": "req001"
+}
+```
+
+```bash
+# Cart workflow
+sn catalog add-to-cart <item_sys_id> --data '{"sysparm_quantity": "1"}'
+sn catalog cart                           # view cart
+sn catalog cart-update <cart_item_id> --field quantity=2
+sn catalog cart-remove <cart_item_id>     # remove one item
+sn catalog cart-empty <cart_sys_id>       # empty entire cart
+sn catalog checkout                       # validate and proceed
+sn catalog submit-order                   # place the order
+
+# Wishlist
+sn catalog wishlist
+```
+
+**Agent tip:** Call `sn catalog item-variables <id>` before ordering to discover required form fields. Variables with `mandatory: true` must be included in the order payload.
+
+## Identification & Reconciliation
+
+`sn identify` wraps the Identification and Reconciliation API (`/api/now/identifyreconcile`). Used for programmatic CI lifecycle management through ServiceNow's reconciliation engine.
+
+All operations are POST-only and take `--data` for the items payload.
+
+```bash
+# Create or update a CI (reconciliation decides based on identification rules)
+sn identify create-update --data '{
+  "items": [{
+    "className": "cmdb_ci_server",
+    "values": {"name": "web-01", "ip_address": "10.0.1.1"}
+  }]
+}'
+```
+```json
+{
+  "items": [
+    {
+      "sysId": "ci001",
+      "className": "cmdb_ci_server",
+      "operation": "INSERT",
+      "identifierEntrySysId": "id001"
+    }
+  ]
+}
+```
+
+```bash
+# Query / identify a CI without modifying it
+sn identify query --data '{
+  "items": [{
+    "className": "cmdb_ci_server",
+    "values": {"name": "web-01"}
+  }]
+}'
+```
+
+### Enhanced variants
+
+The enhanced endpoints support partial payloads and partial commits:
+
+```bash
+sn identify create-update-enhanced \
+  --data @payload.json \
+  --data-source "my_discovery" \
+  --options "partial_payload:true,partial_commits:true"
+
+sn identify query-enhanced --data @query.json
+```
+
+`--data-source` tags the operation for audit trail purposes. `--options` accepts comma-separated `key:value` pairs.
+
 ## Error handling
 
 ### Branch on exit code
@@ -1160,10 +1520,105 @@ sn table replace TABLE SYS_ID (--data ...|--field K=V ...)
 
 sn table delete TABLE SYS_ID [--yes] [--query-no-domain]
 
+sn change list [--type normal|emergency|standard] [--query EQ] [--fields CSV]
+               [--setlimit N] [--offset N] [--display-value ...]
+sn change get SYS_ID [--type ...] [--fields CSV] [--display-value ...]
+sn change create [--type normal|emergency|standard] [--template ID]
+                 (--data ...|--field K=V ...)
+sn change update SYS_ID [--type ...] (--data ...|--field K=V ...)
+sn change delete SYS_ID [--type ...]
+sn change nextstates SYS_ID
+sn change approvals SYS_ID (--data ...|--field K=V ...)
+sn change risk SYS_ID (--data ...|--field K=V ...)
+sn change schedule SYS_ID
+sn change models [SYS_ID]
+sn change templates [SYS_ID]
+sn change task list CHANGE_SYS_ID [--fields CSV] [--setlimit N]
+sn change task get CHANGE_SYS_ID TASK_SYS_ID
+sn change task create CHANGE_SYS_ID (--data ...|--field K=V ...)
+sn change task update CHANGE_SYS_ID TASK_SYS_ID (--data ...|--field K=V ...)
+sn change task delete CHANGE_SYS_ID TASK_SYS_ID
+sn change ci list CHANGE_SYS_ID
+sn change ci add CHANGE_SYS_ID (--data ...|--field K=V ...)
+sn change conflict get SYS_ID
+sn change conflict add SYS_ID (--data ...|--field K=V ...)
+sn change conflict remove SYS_ID
+
+sn attachment list [--query EQ] [--setlimit N] [--offset N]
+sn attachment get SYS_ID
+sn attachment upload --table TABLE --record SYS_ID --file PATH
+                     [--file-name NAME] [--content-type MIME]
+sn attachment download SYS_ID [--output PATH]
+sn attachment delete SYS_ID
+
+sn cmdb list CLASS [--query EQ] [--setlimit N] [--offset N]
+sn cmdb get CLASS SYS_ID
+sn cmdb create CLASS (--data ...|--field K=V ...)
+sn cmdb update CLASS SYS_ID (--data ...|--field K=V ...)
+sn cmdb replace CLASS SYS_ID (--data ...|--field K=V ...)
+sn cmdb meta CLASS
+sn cmdb relation add CLASS SYS_ID (--data ...|--field K=V ...)
+sn cmdb relation delete CLASS SYS_ID REL_SYS_ID
+
+sn import create STAGING_TABLE (--data ...|--field K=V ...)
+sn import bulk STAGING_TABLE --data JSON|@FILE|@-
+sn import get STAGING_TABLE SYS_ID
+
+sn catalog list [--text TEXT]
+sn catalog get SYS_ID
+sn catalog categories CATALOG_SYS_ID [--setlimit N] [--top-level-only]
+sn catalog category SYS_ID
+sn catalog items [--text TEXT] [--category ID] [--catalog ID]
+                 [--item-type TYPE] [--setlimit N]
+sn catalog item SYS_ID
+sn catalog item-variables SYS_ID
+sn catalog order ITEM_SYS_ID (--data ...|--field K=V ...)
+sn catalog add-to-cart ITEM_SYS_ID (--data ...|--field K=V ...)
+sn catalog cart
+sn catalog cart-update CART_ITEM_ID (--data ...|--field K=V ...)
+sn catalog cart-remove CART_ITEM_ID
+sn catalog cart-empty CART_SYS_ID
+sn catalog checkout
+sn catalog submit-order
+sn catalog wishlist
+
+sn identify create-update (--data ...|--field K=V ...) [--data-source NAME]
+sn identify query (--data ...|--field K=V ...) [--data-source NAME]
+sn identify create-update-enhanced (--data ...|--field K=V ...)
+                                   [--data-source NAME] [--options KEY:VAL,...]
+sn identify query-enhanced (--data ...|--field K=V ...)
+                           [--data-source NAME] [--options KEY:VAL,...]
+
+sn aggregate TABLE [--count] [--avg-fields CSV] [--sum-fields CSV]
+                   [--min-fields CSV] [--max-fields CSV]
+                   [--group-by CSV] [--query EQ] [--having EXPR]
+                   [--order-by CSV] [--display-value ...]
+
+sn app install [--scope S|--sys-id ID] [--version V] [--wait]
+sn app publish [--scope S|--sys-id ID] [--version V] [--dev-notes T] [--wait]
+sn app rollback [--scope S|--sys-id ID] --version V [--wait]
+
+sn updateset create --name NAME [--description T] [--scope S]
+sn updateset retrieve --update-set-id ID [--auto-preview] [--wait]
+sn updateset preview REMOTE_ID [--wait]
+sn updateset commit REMOTE_ID [--wait]
+sn updateset commit-multiple --ids CSV [--wait]
+sn updateset back-out --update-set-id ID [--rollback-installs] [--wait]
+
+sn atf run [--suite-id ID|--suite-name N] [--wait]
+sn atf results RESULT_ID
+
+sn scores list [--uuid CSV] [--per-page N] [--page N] [--sort-by ...] [--sort-dir ...]
+               [--include-scores] [--from DATE] [--to DATE] [--favorites] [--key]
+sn scores favorite UUID
+sn scores unfavorite UUID
+
+sn progress PROGRESS_ID
 sn introspect
 
 Global flags (any command):
   --profile NAME          select credential profile
+  --instance-override URL override instance URL for this invocation
   --proxy URL             HTTP/HTTPS/SOCKS5 proxy
   --no-proxy              bypass configured proxy
   --insecure              disable TLS cert verification
@@ -1193,6 +1648,7 @@ Canonical output shapes (stdout):
   update   -> {record}
   replace  -> {record}
   delete   -> (empty)
+  download -> binary bytes (or JSON metadata with --output)
   schema * -> [ {meta}, ... ]
   --output raw preserves { "result": ... } envelope
 

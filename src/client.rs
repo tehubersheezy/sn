@@ -248,6 +248,65 @@ impl Client {
 }
 
 impl Client {
+    pub fn delete_json(&self, path: &str, query: &[(String, String)]) -> Result<Value> {
+        let url = format!("{}{}", self.base_url, path);
+        let resp = self
+            .http
+            .request(Method::DELETE, &url)
+            .basic_auth(&self.username, Some(&self.password))
+            .query(query)
+            .send()
+            .map_err(|e| Error::Transport(format!("{e}")))?;
+        parse_response(resp)
+    }
+
+    pub fn upload_file(
+        &self,
+        path: &str,
+        query: &[(String, String)],
+        body: Vec<u8>,
+        content_type: &str,
+    ) -> Result<Value> {
+        let url = format!("{}{}", self.base_url, path);
+        let resp = self
+            .http
+            .request(Method::POST, &url)
+            .basic_auth(&self.username, Some(&self.password))
+            .query(query)
+            .header(CONTENT_TYPE, content_type)
+            .body(body)
+            .send()
+            .map_err(|e| Error::Transport(format!("{e}")))?;
+        parse_response(resp)
+    }
+
+    pub fn download_file(&self, path: &str) -> Result<(Vec<u8>, Option<String>)> {
+        let url = format!("{}{}", self.base_url, path);
+        let resp = self
+            .http
+            .request(Method::GET, &url)
+            .basic_auth(&self.username, Some(&self.password))
+            .send()
+            .map_err(|e| Error::Transport(format!("{e}")))?;
+        let status = resp.status();
+        if !status.is_success() {
+            let tx = transaction_id(&resp);
+            return Err(from_http(status, tx, resp));
+        }
+        let ct = resp
+            .headers()
+            .get(CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .map(ToString::to_string);
+        let bytes = resp
+            .bytes()
+            .map_err(|e| Error::Transport(format!("read body: {e}")))?
+            .to_vec();
+        Ok((bytes, ct))
+    }
+}
+
+impl Client {
     /// Stream records from a paginated list endpoint, following Link: rel="next" headers.
     pub fn paginate(
         &self,

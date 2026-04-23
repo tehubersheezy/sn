@@ -1,6 +1,7 @@
 use clap::Parser;
 use sn::cli::{
-    AppSub, AtfSub, AuthSub, Cli, Command, SchemaSub, ScoresSub, TableSub, UpdateSetSub,
+    AppSub, AtfSub, AttachmentSub, AuthSub, CatalogSub, ChangeSub, Cli, CmdbSub, Command,
+    IdentifySub, ImportSub, SchemaSub, ScoresSub, TableSub, UpdateSetSub,
 };
 use sn::error::Result;
 use sn::output::emit_error;
@@ -66,6 +67,69 @@ fn run(cli: Cli) -> Result<()> {
             ScoresSub::List(args) => sn::cli::scores::list(&global, *args),
             ScoresSub::Favorite(args) => sn::cli::scores::favorite(&global, args),
             ScoresSub::Unfavorite(args) => sn::cli::scores::unfavorite(&global, args),
+        },
+        Command::Change { sub } => match sub {
+            ChangeSub::List(args) => sn::cli::change::list(&global, args),
+            ChangeSub::Get(args) => sn::cli::change::get(&global, args),
+            ChangeSub::Create(args) => sn::cli::change::create(&global, args),
+            ChangeSub::Update(args) => sn::cli::change::update(&global, args),
+            ChangeSub::Delete(args) => sn::cli::change::delete(&global, args),
+            ChangeSub::Nextstates(args) => sn::cli::change::nextstates(&global, args),
+            ChangeSub::Approvals(args) => sn::cli::change::approvals(&global, args),
+            ChangeSub::Risk(args) => sn::cli::change::risk(&global, args),
+            ChangeSub::Schedule(args) => sn::cli::change::schedule(&global, args),
+            ChangeSub::Task { sub } => sn::cli::change::task(&global, sub),
+            ChangeSub::Ci { sub } => sn::cli::change::ci(&global, sub),
+            ChangeSub::Conflict { sub } => sn::cli::change::conflict(&global, sub),
+            ChangeSub::Models(args) => sn::cli::change::models(&global, args),
+            ChangeSub::Templates(args) => sn::cli::change::templates(&global, args),
+        },
+        Command::Attachment { sub } => match sub {
+            AttachmentSub::List(args) => sn::cli::attachment::list(&global, args),
+            AttachmentSub::Get(args) => sn::cli::attachment::get(&global, args),
+            AttachmentSub::Upload(args) => sn::cli::attachment::upload(&global, args),
+            AttachmentSub::Download(args) => sn::cli::attachment::download(&global, args),
+            AttachmentSub::Delete(args) => sn::cli::attachment::delete(&global, args),
+        },
+        Command::Cmdb { sub } => match sub {
+            CmdbSub::List(args) => sn::cli::cmdb::list(&global, args),
+            CmdbSub::Get(args) => sn::cli::cmdb::get(&global, args),
+            CmdbSub::Create(args) => sn::cli::cmdb::create(&global, args),
+            CmdbSub::Update(args) => sn::cli::cmdb::update(&global, args),
+            CmdbSub::Replace(args) => sn::cli::cmdb::replace(&global, args),
+            CmdbSub::Meta(args) => sn::cli::cmdb::meta(&global, args),
+            CmdbSub::Relation { sub } => sn::cli::cmdb::relation(&global, sub),
+        },
+        Command::Import { sub } => match sub {
+            ImportSub::Create(args) => sn::cli::import::create(&global, args),
+            ImportSub::Bulk(args) => sn::cli::import::bulk(&global, args),
+            ImportSub::Get(args) => sn::cli::import::get(&global, args),
+        },
+        Command::Catalog { sub } => match sub {
+            CatalogSub::List(args) => sn::cli::catalog::list(&global, args),
+            CatalogSub::Get(args) => sn::cli::catalog::get(&global, args),
+            CatalogSub::Categories(args) => sn::cli::catalog::categories(&global, args),
+            CatalogSub::Category(args) => sn::cli::catalog::category(&global, args),
+            CatalogSub::Items(args) => sn::cli::catalog::items(&global, args),
+            CatalogSub::Item(args) => sn::cli::catalog::item(&global, args),
+            CatalogSub::ItemVariables(args) => sn::cli::catalog::item_variables(&global, args),
+            CatalogSub::Order(args) => sn::cli::catalog::order(&global, args),
+            CatalogSub::AddToCart(args) => sn::cli::catalog::add_to_cart(&global, args),
+            CatalogSub::Cart => sn::cli::catalog::cart(&global),
+            CatalogSub::CartUpdate(args) => sn::cli::catalog::cart_update(&global, args),
+            CatalogSub::CartRemove(args) => sn::cli::catalog::cart_remove(&global, args),
+            CatalogSub::CartEmpty(args) => sn::cli::catalog::cart_empty(&global, args),
+            CatalogSub::Checkout => sn::cli::catalog::checkout(&global),
+            CatalogSub::SubmitOrder => sn::cli::catalog::submit_order(&global),
+            CatalogSub::Wishlist => sn::cli::catalog::wishlist(&global),
+        },
+        Command::Identify { sub } => match sub {
+            IdentifySub::CreateUpdate(args) => sn::cli::identify::create_update(&global, args),
+            IdentifySub::Query(args) => sn::cli::identify::query(&global, args),
+            IdentifySub::CreateUpdateEnhanced(args) => {
+                sn::cli::identify::create_update_enhanced(&global, args)
+            }
+            IdentifySub::QueryEnhanced(args) => sn::cli::identify::query_enhanced(&global, args),
         },
     }
 }

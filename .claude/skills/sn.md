@@ -1,11 +1,11 @@
 ---
 name: sn
-description: Use when the user asks about ServiceNow data, incidents, change requests, problems, CIs, or any SNOW/SN table operations. Also use when user says "sn", "servicenow", or references a ServiceNow instance, CICD operations (app install/publish/rollback, update sets, ATF tests), aggregate statistics on SN tables, or Performance Analytics scorecards.
+description: Use when the user asks about ServiceNow data, incidents, change requests, problems, CIs, attachments, CMDB, service catalog, import sets, or any SNOW/SN operations. Also use when user says "sn", "servicenow", or references a ServiceNow instance, CICD operations (app install/publish/rollback, update sets, ATF tests), aggregate statistics, Performance Analytics scorecards, or CI reconciliation.
 ---
 
 # sn — ServiceNow CLI
 
-Single-binary CLI wrapping the ServiceNow Table API + schema discovery. JSON on stdout, errors on stderr, deterministic exit codes. Installed at `sn`.
+Single-binary CLI wrapping ServiceNow REST APIs: Table, Change Management, Attachment, CMDB, Import Set, Service Catalog, Identification & Reconciliation, CICD, Aggregate, Performance Analytics, and schema discovery. JSON on stdout, errors on stderr, deterministic exit codes. Installed at `sn`.
 
 ## Discovery flow (use this when you don't know the schema)
 
@@ -132,6 +132,83 @@ sn scores list --per-page 20 --sort-by VALUE --sort-dir DESC
 sn scores list --uuid <indicator_id> --include-scores --from 2026-01-01 --to 2026-04-01
 sn scores favorite <uuid>
 sn scores unfavorite <uuid>
+```
+
+## Change Management
+
+```bash
+sn change list --type normal --query "state=1" --setlimit 10
+sn change get <sys_id> --type normal
+sn change create --type normal --field short_description="DB migration"
+sn change create --type standard --template <template_id>   # standard requires --template
+sn change update <sys_id> --field state=2
+sn change delete <sys_id>
+sn change nextstates <sys_id>                               # valid state transitions
+sn change approvals <sys_id> --field approval="approved"
+sn change risk <sys_id> --data '{"risk_value":"moderate"}'
+sn change schedule <sys_id>
+sn change models                                            # list change models
+sn change templates                                         # list standard templates
+sn change task list <change_sys_id>                         # tasks, CIs, conflicts
+sn change task create <change_sys_id> --field short_description="Pre-check"
+sn change ci list <change_sys_id>
+sn change ci add <change_sys_id> --data '{"cmdb_ci_sys_id":"<id>"}'
+sn change conflict get <sys_id>
+```
+
+## Attachments
+
+```bash
+sn attachment list --query "table_name=incident"
+sn attachment get <sys_id>
+sn attachment upload --table incident --record <record_id> --file ./report.pdf
+sn attachment download <sys_id> --output ./file.pdf         # or stdout without --output
+sn attachment delete <sys_id>
+```
+
+## CMDB
+
+```bash
+sn cmdb list cmdb_ci_server --query "operational_status=1"
+sn cmdb get cmdb_ci_server <sys_id>
+sn cmdb create cmdb_ci_server --field name=web-01 --field ip_address=10.0.1.1
+sn cmdb update cmdb_ci_server <sys_id> --field operational_status=2
+sn cmdb replace cmdb_ci_server <sys_id> --data @ci.json     # PUT full overwrite
+sn cmdb meta cmdb_ci_server                                 # class metadata
+sn cmdb relation add cmdb_ci_server <sys_id> --data '{"type":"<rel_type>","target":"<ci>"}'
+sn cmdb relation delete cmdb_ci_server <sys_id> <rel_sys_id>
+```
+
+## Import Sets
+
+```bash
+sn import create u_staging_table --field u_name=Server-01
+sn import bulk u_staging_table --data '[{"u_name":"A"},{"u_name":"B"}]'
+sn import get u_staging_table <sys_id>
+```
+
+## Service Catalog
+
+```bash
+sn catalog list                                              # list catalogs
+sn catalog items --text "laptop"                             # search items
+sn catalog item <sys_id>                                     # item details
+sn catalog item-variables <sys_id>                           # required form fields
+sn catalog order <item_sys_id> --data '{"sysparm_quantity":"1"}'  # order immediately
+sn catalog add-to-cart <item_sys_id>                         # cart workflow
+sn catalog cart                                              # view cart
+sn catalog checkout                                          # validate
+sn catalog submit-order                                      # place order
+sn catalog wishlist
+```
+
+## Identification & Reconciliation
+
+```bash
+sn identify create-update --data '{"items":[{"className":"cmdb_ci_server","values":{"name":"web-01"}}]}'
+sn identify query --data '{"items":[{"className":"cmdb_ci_server","values":{"name":"web-01"}}]}'
+sn identify create-update-enhanced --data @payload.json --data-source "discovery" --options "partial_payload:true"
+sn identify query-enhanced --data @query.json
 ```
 
 ## Introspection

@@ -1,8 +1,8 @@
 # sn
 
-A fast, single-binary CLI for the ServiceNow Table API. Designed for LLM agents and human operators alike.
+A fast, single-binary CLI for ServiceNow. Designed for LLM agents and human operators alike.
 
-`sn` wraps ServiceNow's REST Table API and two schema-discovery endpoints into a predictable command-line interface with stable JSON output, structured error reporting, and deterministic exit codes.
+`sn` wraps ServiceNow's REST APIs — Table, Change Management, Attachment, CMDB, Import Set, Service Catalog, Identification & Reconciliation, CICD, Aggregate, Performance Analytics, and schema discovery — into a predictable command-line interface with stable JSON output, structured error reporting, and deterministic exit codes.
 
 ## Installation
 
@@ -179,6 +179,210 @@ sn aggregate incident \
   --max-fields priority
 ```
 
+### Change Management
+
+Full lifecycle management for normal, emergency, and standard change requests:
+
+```bash
+# List all normal changes
+sn change list --type normal --query "state=1" --setlimit 10
+
+# Create a normal change
+sn change create --type normal \
+  --field short_description="DB migration" \
+  --field category=software
+
+# Create a standard change from a template
+sn change create --type standard --template <template_sys_id> \
+  --field short_description="Routine patching"
+
+# Update a change
+sn change update <sys_id> --field state=2
+
+# Get valid next states (useful for workflow automation)
+sn change nextstates <sys_id>
+
+# Delete a change
+sn change delete <sys_id>
+```
+
+#### Change tasks, CIs, and conflicts
+
+```bash
+# Task management
+sn change task list <change_sys_id>
+sn change task create <change_sys_id> --field short_description="Pre-check"
+sn change task update <change_sys_id> <task_sys_id> --field state=2
+sn change task delete <change_sys_id> <task_sys_id>
+
+# CI relationships
+sn change ci list <change_sys_id>
+sn change ci add <change_sys_id> --data '{"cmdb_ci_sys_id": "<ci_id>"}'
+
+# Conflicts
+sn change conflict get <sys_id>
+sn change conflict add <sys_id> --data '{"...": "..."}'
+sn change conflict remove <sys_id>
+
+# Approval and risk
+sn change approvals <sys_id> --field approval="approved"
+sn change risk <sys_id> --data '{"risk_value": "moderate"}'
+
+# Schedule and models
+sn change schedule <sys_id>
+sn change models                  # list all change models
+sn change templates               # list standard change templates
+sn change templates <sys_id>      # get a specific template
+```
+
+### Attachments
+
+Upload, download, and manage file attachments on any ServiceNow record:
+
+```bash
+# List attachments for a table
+sn attachment list --query "table_name=incident"
+
+# Get attachment metadata
+sn attachment get <sys_id>
+
+# Upload a file to a record
+sn attachment upload \
+  --table incident \
+  --record <record_sys_id> \
+  --file ./screenshot.png
+
+# Upload with custom name and content type
+sn attachment upload \
+  --table incident \
+  --record <record_sys_id> \
+  --file ./data.csv \
+  --file-name "export_2026.csv" \
+  --content-type text/csv
+
+# Download attachment content
+sn attachment download <sys_id> --output ./downloaded.png
+
+# Download to stdout (pipe to another tool)
+sn attachment download <sys_id> | gzip > backup.gz
+
+# Delete an attachment
+sn attachment delete <sys_id>
+```
+
+### CMDB
+
+Query, create, and manage Configuration Items and their relationships:
+
+```bash
+# List CIs of a specific class
+sn cmdb list cmdb_ci_server --query "operational_status=1" --setlimit 20
+
+# Get a CI with its relations
+sn cmdb get cmdb_ci_server <sys_id>
+
+# Create a CI
+sn cmdb create cmdb_ci_server \
+  --field name=web-server-01 \
+  --field ip_address=10.0.1.50
+
+# Update a CI (PATCH)
+sn cmdb update cmdb_ci_server <sys_id> --field operational_status=2
+
+# Replace a CI (PUT — full overwrite)
+sn cmdb replace cmdb_ci_server <sys_id> --data @ci.json
+
+# Get class metadata (schema for a CMDB class)
+sn cmdb meta cmdb_ci_server
+
+# Manage relations
+sn cmdb relation add cmdb_ci_server <sys_id> \
+  --data '{"type": "<rel_type_id>", "target": "<target_ci_id>"}'
+sn cmdb relation delete cmdb_ci_server <sys_id> <rel_sys_id>
+```
+
+### Import Sets
+
+Insert records into staging tables for transform-based imports:
+
+```bash
+# Insert a single record
+sn import create u_staging_table \
+  --field u_name="Server-01" \
+  --field u_ip="10.0.1.1"
+
+# Bulk insert multiple records
+sn import bulk u_staging_table \
+  --data '[{"u_name":"Server-01"},{"u_name":"Server-02"}]'
+
+# Retrieve an import set record
+sn import get u_staging_table <sys_id>
+```
+
+### Service Catalog
+
+Browse catalogs, search items, and place orders:
+
+```bash
+# Browse catalogs
+sn catalog list
+sn catalog get <catalog_sys_id>
+
+# Browse categories
+sn catalog categories <catalog_sys_id>
+sn catalog category <category_sys_id>
+
+# Search and view items
+sn catalog items --text "laptop" --catalog <catalog_id>
+sn catalog item <item_sys_id>
+sn catalog item-variables <item_sys_id>   # form fields required to order
+
+# Order immediately (bypasses cart)
+sn catalog order <item_sys_id> --data '{"sysparm_quantity": "1"}'
+
+# Cart workflow
+sn catalog add-to-cart <item_sys_id> --data '{"sysparm_quantity": "1"}'
+sn catalog cart                           # view current cart
+sn catalog cart-update <cart_item_id> --field quantity=2
+sn catalog cart-remove <cart_item_id>
+sn catalog cart-empty <cart_sys_id>
+sn catalog checkout
+sn catalog submit-order
+
+# Wishlist
+sn catalog wishlist
+```
+
+### Identification & Reconciliation
+
+Create, update, or identify CIs through the reconciliation engine:
+
+```bash
+# Create or update a CI
+sn identify create-update --data '{
+  "items": [{
+    "className": "cmdb_ci_server",
+    "values": {"name": "web-01", "ip_address": "10.0.1.1"}
+  }]
+}'
+
+# Identify a CI without modifying it
+sn identify query --data '{
+  "items": [{
+    "className": "cmdb_ci_server",
+    "values": {"name": "web-01"}
+  }]
+}'
+
+# Enhanced variants with options
+sn identify create-update-enhanced \
+  --data @payload.json \
+  --data-source "discovery" \
+  --options "partial_payload:true,partial_commits:true"
+
+sn identify query-enhanced --data @query.json --data-source "discovery"
+```
+
 ### CICD operations
 
 #### App lifecycle
@@ -275,6 +479,27 @@ sn introspect | jq '.subcommands[] | {name, about}'
 | `progress` | Progress status object |
 | `scores list` | JSON array of scorecard records |
 | `scores favorite` / `unfavorite` | Updated scorecard object |
+| `change list` | JSON array of change records |
+| `change get` / `create` / `update` | Single change object |
+| `change delete` | Nothing (empty) |
+| `change nextstates` / `schedule` / `models` / `templates` | JSON object or array |
+| `change task list` / `ci list` | JSON array |
+| `change task get` / `task create` / `task update` | Single task object |
+| `attachment list` | JSON array of attachment metadata |
+| `attachment get` | Single attachment metadata object |
+| `attachment upload` | Created attachment metadata object |
+| `attachment download` | Binary file content (or JSON metadata with `--output`) |
+| `attachment delete` | Nothing (empty) |
+| `cmdb list` | JSON array of CI records |
+| `cmdb get` / `create` / `update` / `replace` | Single CI object with relations |
+| `cmdb meta` | Class metadata object |
+| `import create` | Import result array |
+| `import bulk` | Import result array |
+| `import get` | Single import set record |
+| `catalog list` / `items` | JSON array |
+| `catalog get` / `category` / `item` | Single object |
+| `catalog order` / `checkout` / `submit-order` | Order result object |
+| `identify create-update` / `query` | Reconciliation result object |
 
 - `--output raw` preserves ServiceNow's `{"result": ...}` envelope.
 - Pretty-printed when stdout is a TTY; compact when piped. Override with `--pretty` / `--compact`.
