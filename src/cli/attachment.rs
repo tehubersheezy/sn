@@ -1,12 +1,74 @@
 use crate::cli::table::{build_client, build_profile, format_from_flags, unwrap_or_raw};
-use crate::cli::{
-    AttachmentDeleteArgs, AttachmentDownloadArgs, AttachmentGetArgs, AttachmentListArgs,
-    AttachmentUploadArgs, GlobalFlags,
-};
+use crate::cli::GlobalFlags;
 use crate::error::{Error, Result};
 use crate::output::emit_value;
+use clap::Subcommand;
 use std::io::{self, Write};
 use std::path::Path;
+
+#[derive(Subcommand, Debug)]
+pub enum AttachmentSub {
+    /// List attachments with optional query filter.
+    List(AttachmentListArgs),
+    /// Get attachment metadata by sys_id.
+    Get(AttachmentGetArgs),
+    /// Upload a file as an attachment.
+    Upload(AttachmentUploadArgs),
+    /// Download attachment content to a file or stdout.
+    Download(AttachmentDownloadArgs),
+    /// Delete an attachment.
+    Delete(AttachmentDeleteArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct AttachmentListArgs {
+    #[arg(long, alias = "sysparm-query")]
+    pub query: Option<String>,
+    #[arg(long, alias = "sysparm-limit", alias = "limit", default_value_t = 100)]
+    pub setlimit: u32,
+    #[arg(long, alias = "sysparm-offset")]
+    pub offset: Option<u32>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct AttachmentGetArgs {
+    pub sys_id: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct AttachmentUploadArgs {
+    /// Table to attach to (e.g. `incident`).
+    #[arg(long, required = true)]
+    pub table: String,
+    /// sys_id of the record to attach to.
+    #[arg(long, required = true)]
+    pub record: String,
+    /// Path to the file to upload.
+    #[arg(long, required = true)]
+    pub file: String,
+    /// File name override (defaults to the file's basename).
+    #[arg(long)]
+    pub file_name: Option<String>,
+    /// Content type (auto-detected if not specified).
+    #[arg(long)]
+    pub content_type: Option<String>,
+    /// Encryption context sys_id.
+    #[arg(long)]
+    pub encryption_context: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct AttachmentDownloadArgs {
+    pub sys_id: String,
+    /// Output file path (writes to stdout if not specified).
+    #[arg(long, short)]
+    pub output: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct AttachmentDeleteArgs {
+    pub sys_id: String,
+}
 
 pub fn list(global: &GlobalFlags, args: AttachmentListArgs) -> Result<()> {
     let profile = build_profile(global)?;
@@ -22,7 +84,7 @@ pub fn list(global: &GlobalFlags, args: AttachmentListArgs) -> Result<()> {
     let resp = client.get("/api/now/attachment", &query)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn get(global: &GlobalFlags, args: AttachmentGetArgs) -> Result<()> {
@@ -32,7 +94,7 @@ pub fn get(global: &GlobalFlags, args: AttachmentGetArgs) -> Result<()> {
     let resp = client.get(&path, &[])?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn upload(global: &GlobalFlags, args: AttachmentUploadArgs) -> Result<()> {
@@ -62,7 +124,7 @@ pub fn upload(global: &GlobalFlags, args: AttachmentUploadArgs) -> Result<()> {
     let resp = client.upload_file("/api/now/attachment/file", &query, body, &content_type)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn download(global: &GlobalFlags, args: AttachmentDownloadArgs) -> Result<()> {
@@ -78,12 +140,12 @@ pub fn download(global: &GlobalFlags, args: AttachmentDownloadArgs) -> Result<()
             "size": bytes.len()
         });
         emit_value(io::stdout().lock(), &meta, format_from_flags(global))
-            .map_err(|e| Error::Usage(format!("stdout: {e}")))
+            .map_err(crate::output::map_stdout_err)
     } else {
         io::stdout()
             .lock()
             .write_all(&bytes)
-            .map_err(|e| Error::Usage(format!("stdout: {e}")))?;
+            .map_err(crate::output::map_stdout_err)?;
         Ok(())
     }
 }

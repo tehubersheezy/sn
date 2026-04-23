@@ -1,8 +1,180 @@
-use crate::cli::{GlobalFlags, ScoresFavoriteArgs, ScoresListArgs};
-use crate::error::{Error, Result};
+use crate::cli::{DisplayValueArg, GlobalFlags};
+use crate::error::Result;
 use crate::output::emit_value;
+use clap::{Subcommand, ValueEnum};
 
 use super::table::{build_client, build_profile, format_from_flags, unwrap_or_raw};
+
+#[derive(Subcommand, Debug)]
+pub enum ScoresSub {
+    /// List scorecards (GET /api/now/pa/scorecards).
+    List(Box<ScoresListArgs>),
+    /// Mark a scorecard as a favorite (POST /api/now/pa/scorecards).
+    Favorite(ScoresFavoriteArgs),
+    /// Remove a scorecard from favorites (DELETE /api/now/pa/scorecards).
+    Unfavorite(ScoresFavoriteArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ScoresListArgs {
+    /// Comma-separated scorecard UUIDs.
+    #[arg(long, alias = "sysparm-uuid")]
+    pub uuid: Option<String>,
+    /// Breakdown sys_id.
+    #[arg(long, alias = "sysparm-breakdown")]
+    pub breakdown: Option<String>,
+    /// Breakdown relation sys_id.
+    #[arg(long, alias = "sysparm-breakdown-relation")]
+    pub breakdown_relation: Option<String>,
+    /// Elements filter sys_id.
+    #[arg(long, alias = "sysparm-elements-filter")]
+    pub elements_filter: Option<String>,
+    /// Display value: true, false, or all.
+    #[arg(long, alias = "sysparm-display", value_enum)]
+    pub display: Option<DisplayValueArg>,
+    /// Return only favorites.
+    #[arg(long, alias = "sysparm-favorites")]
+    pub favorites: bool,
+    /// Return only key indicators.
+    #[arg(long, alias = "sysparm-key")]
+    pub key: bool,
+    /// Return only indicators with a target.
+    #[arg(long, alias = "sysparm-target")]
+    pub target: bool,
+    /// Comma-separated substrings to search for.
+    #[arg(long, alias = "sysparm-contains")]
+    pub contains: Option<String>,
+    /// Comma-separated tag sys_ids to filter by.
+    #[arg(long, alias = "sysparm-tags")]
+    pub tags: Option<String>,
+    /// Number of results per page (default 10, max 100).
+    #[arg(long, alias = "sysparm-per-page", default_value_t = 10)]
+    pub per_page: u32,
+    /// Page number (default 1).
+    #[arg(long, alias = "sysparm-page", default_value_t = 1)]
+    pub page: u32,
+    /// Field to sort by.
+    #[arg(long, alias = "sysparm-sortby", value_enum)]
+    pub sort_by: Option<SortBy>,
+    /// Sort direction.
+    #[arg(long, alias = "sysparm-sortdir", value_enum)]
+    pub sort_dir: Option<SortDir>,
+    /// Resolve reference/choice display values: true, false, or all.
+    #[arg(long, alias = "sysparm-display-value", value_enum)]
+    pub display_value: Option<DisplayValueArg>,
+    /// Exclude reference link URLs from the response.
+    #[arg(long, alias = "sysparm-exclude-reference-link")]
+    pub exclude_reference_link: bool,
+    /// Include historical score data.
+    #[arg(long, alias = "sysparm-include-scores")]
+    pub include_scores: bool,
+    /// Start of score date range (ISO-8601).
+    #[arg(long, alias = "sysparm-from")]
+    pub from: Option<String>,
+    /// End of score date range (ISO-8601).
+    #[arg(long, alias = "sysparm-to")]
+    pub to: Option<String>,
+    /// Step between scores.
+    #[arg(long, alias = "sysparm-step")]
+    pub step: Option<u32>,
+    /// Maximum number of scores to return (-1 = all).
+    #[arg(long, alias = "sysparm-limit")]
+    pub limit: Option<i64>,
+    /// Include available breakdowns in the response.
+    #[arg(long, alias = "sysparm-include-available-breakdowns")]
+    pub include_available_breakdowns: bool,
+    /// Include available aggregates in the response.
+    #[arg(long, alias = "sysparm-include-available-aggregates")]
+    pub include_available_aggregates: bool,
+    /// Include real-time score data.
+    #[arg(long, alias = "sysparm-include-realtime")]
+    pub include_realtime: bool,
+    /// Include target color scheme.
+    #[arg(long, alias = "sysparm-include-target-color-scheme")]
+    pub include_target_color_scheme: bool,
+    /// Include forecast scores.
+    #[arg(long, alias = "sysparm-include-forecast-scores")]
+    pub include_forecast_scores: bool,
+    /// Include trendline scores.
+    #[arg(long, alias = "sysparm-include-trendline-scores")]
+    pub include_trendline_scores: bool,
+    /// Include prediction interval data.
+    #[arg(long, alias = "sysparm-include-prediction-interval")]
+    pub include_prediction_interval: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ScoresFavoriteArgs {
+    /// Scorecard UUID.
+    pub uuid: String,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum SortBy {
+    #[value(name = "VALUE")]
+    Value,
+    #[value(name = "CHANGE")]
+    Change,
+    #[value(name = "CHANGEPERC")]
+    ChangePerc,
+    #[value(name = "GAP")]
+    Gap,
+    #[value(name = "GAPPERC")]
+    GapPerc,
+    #[value(name = "NAME")]
+    Name,
+    #[value(name = "ORDER")]
+    Order,
+    #[value(name = "DEFAULT")]
+    Default,
+    #[value(name = "INDICATOR_GROUP")]
+    IndicatorGroup,
+    #[value(name = "FREQUENCY")]
+    Frequency,
+    #[value(name = "TARGET")]
+    Target,
+    #[value(name = "DATE")]
+    Date,
+    #[value(name = "DIRECTION")]
+    Direction,
+}
+
+impl SortBy {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Value => "VALUE",
+            Self::Change => "CHANGE",
+            Self::ChangePerc => "CHANGEPERC",
+            Self::Gap => "GAP",
+            Self::GapPerc => "GAPPERC",
+            Self::Name => "NAME",
+            Self::Order => "ORDER",
+            Self::Default => "DEFAULT",
+            Self::IndicatorGroup => "INDICATOR_GROUP",
+            Self::Frequency => "FREQUENCY",
+            Self::Target => "TARGET",
+            Self::Date => "DATE",
+            Self::Direction => "DIRECTION",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum SortDir {
+    #[value(name = "ASC")]
+    Asc,
+    #[value(name = "DESC")]
+    Desc,
+}
+
+impl SortDir {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Asc => "ASC",
+            Self::Desc => "DESC",
+        }
+    }
+}
 
 const SCORECARDS_PATH: &str = "/api/now/pa/scorecards";
 
@@ -107,7 +279,7 @@ pub fn list(global: &GlobalFlags, args: ScoresListArgs) -> Result<()> {
     let resp = client.get(SCORECARDS_PATH, &q)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(std::io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn favorite(global: &GlobalFlags, args: ScoresFavoriteArgs) -> Result<()> {
@@ -118,7 +290,7 @@ pub fn favorite(global: &GlobalFlags, args: ScoresFavoriteArgs) -> Result<()> {
     let resp = client.post(SCORECARDS_PATH, &q, &serde_json::json!({}))?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(std::io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn unfavorite(global: &GlobalFlags, args: ScoresFavoriteArgs) -> Result<()> {

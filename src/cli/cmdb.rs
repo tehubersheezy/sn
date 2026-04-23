@@ -1,12 +1,109 @@
 use crate::body::{build_body, BodyInput};
 use crate::cli::table::{build_client, build_profile, format_from_flags, unwrap_or_raw};
-use crate::cli::{
-    CmdbCreateArgs, CmdbGetArgs, CmdbListArgs, CmdbMetaArgs, CmdbRelationAddArgs,
-    CmdbRelationDeleteArgs, CmdbRelationSub, CmdbReplaceArgs, CmdbUpdateArgs, GlobalFlags,
-};
-use crate::error::{Error, Result};
+use crate::cli::GlobalFlags;
+use crate::error::Result;
 use crate::output::emit_value;
+use clap::Subcommand;
 use std::io;
+
+#[derive(Subcommand, Debug)]
+pub enum CmdbSub {
+    /// List CI records for a CMDB class.
+    List(CmdbListArgs),
+    /// Get a CI record with relations.
+    Get(CmdbGetArgs),
+    /// Create a CI record.
+    Create(CmdbCreateArgs),
+    /// Update a CI record (PATCH).
+    Update(CmdbUpdateArgs),
+    /// Replace a CI record (PUT).
+    Replace(CmdbReplaceArgs),
+    /// Get metadata for a CMDB class.
+    Meta(CmdbMetaArgs),
+    /// Relation operations on a CI.
+    Relation {
+        #[command(subcommand)]
+        sub: CmdbRelationSub,
+    },
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CmdbListArgs {
+    /// CMDB class name (e.g. `cmdb_ci_server`).
+    pub class: String,
+    #[arg(long, alias = "sysparm-query")]
+    pub query: Option<String>,
+    #[arg(long, alias = "sysparm-limit", alias = "limit", default_value_t = 1000)]
+    pub setlimit: u32,
+    #[arg(long, alias = "sysparm-offset")]
+    pub offset: Option<u32>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CmdbGetArgs {
+    pub class: String,
+    pub sys_id: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CmdbCreateArgs {
+    pub class: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CmdbUpdateArgs {
+    pub class: String,
+    pub sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CmdbReplaceArgs {
+    pub class: String,
+    pub sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CmdbMetaArgs {
+    pub class: String,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum CmdbRelationSub {
+    /// Create a relation on a CI.
+    Add(CmdbRelationAddArgs),
+    /// Delete a relation from a CI.
+    Delete(CmdbRelationDeleteArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CmdbRelationAddArgs {
+    pub class: String,
+    pub sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CmdbRelationDeleteArgs {
+    pub class: String,
+    pub sys_id: String,
+    /// sys_id of the relation to delete.
+    pub rel_sys_id: String,
+}
 
 pub fn list(global: &GlobalFlags, args: CmdbListArgs) -> Result<()> {
     let profile = build_profile(global)?;
@@ -23,7 +120,7 @@ pub fn list(global: &GlobalFlags, args: CmdbListArgs) -> Result<()> {
     let resp = client.get(&path, &query)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn get(global: &GlobalFlags, args: CmdbGetArgs) -> Result<()> {
@@ -33,7 +130,7 @@ pub fn get(global: &GlobalFlags, args: CmdbGetArgs) -> Result<()> {
     let resp = client.get(&path, &[])?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn create(global: &GlobalFlags, args: CmdbCreateArgs) -> Result<()> {
@@ -51,7 +148,7 @@ pub fn create(global: &GlobalFlags, args: CmdbCreateArgs) -> Result<()> {
     let resp = client.post(&path, &[], &body)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn update(global: &GlobalFlags, args: CmdbUpdateArgs) -> Result<()> {
@@ -69,7 +166,7 @@ pub fn update(global: &GlobalFlags, args: CmdbUpdateArgs) -> Result<()> {
     let resp = client.patch(&path, &[], &body)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn replace(global: &GlobalFlags, args: CmdbReplaceArgs) -> Result<()> {
@@ -87,7 +184,7 @@ pub fn replace(global: &GlobalFlags, args: CmdbReplaceArgs) -> Result<()> {
     let resp = client.put(&path, &[], &body)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn meta(global: &GlobalFlags, args: CmdbMetaArgs) -> Result<()> {
@@ -97,7 +194,7 @@ pub fn meta(global: &GlobalFlags, args: CmdbMetaArgs) -> Result<()> {
     let resp = client.get(&path, &[])?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn relation(global: &GlobalFlags, sub: CmdbRelationSub) -> Result<()> {
@@ -125,7 +222,7 @@ fn relation_add(global: &GlobalFlags, args: CmdbRelationAddArgs) -> Result<()> {
     let resp = client.post(&path, &[], &body)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 fn relation_delete(global: &GlobalFlags, args: CmdbRelationDeleteArgs) -> Result<()> {

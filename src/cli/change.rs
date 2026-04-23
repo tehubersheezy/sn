@@ -1,15 +1,254 @@
 use crate::body::{build_body, BodyInput};
 use crate::cli::table::{build_client, build_profile, format_from_flags, unwrap_or_raw};
-use crate::cli::{
-    ChangeApprovalsArgs, ChangeCiAddArgs, ChangeCiSub, ChangeConflictAddArgs, ChangeConflictSub,
-    ChangeCreateArgs, ChangeDeleteArgs, ChangeGetArgs, ChangeListArgs, ChangeOptionalIdArg,
-    ChangeRiskArgs, ChangeSysIdArg, ChangeTaskCreateArgs, ChangeTaskDeleteArgs, ChangeTaskGetArgs,
-    ChangeTaskListArgs, ChangeTaskSub, ChangeTaskUpdateArgs, ChangeType, ChangeUpdateArgs,
-    GlobalFlags,
-};
+use crate::cli::{DisplayValueArg, GlobalFlags};
 use crate::error::{Error, Result};
 use crate::output::emit_value;
+use clap::{Subcommand, ValueEnum};
 use std::io;
+
+#[derive(Subcommand, Debug)]
+pub enum ChangeSub {
+    /// List change requests.
+    List(ChangeListArgs),
+    /// Get a change request by sys_id.
+    Get(ChangeGetArgs),
+    /// Create a change request.
+    Create(ChangeCreateArgs),
+    /// Update (PATCH) a change request.
+    Update(ChangeUpdateArgs),
+    /// Delete a change request.
+    Delete(ChangeDeleteArgs),
+    /// Get valid next states for a change.
+    Nextstates(ChangeSysIdArg),
+    /// Update approval state on a change.
+    Approvals(ChangeApprovalsArgs),
+    /// Update the risk assessment of a change.
+    Risk(ChangeRiskArgs),
+    /// Get the schedule for a change.
+    Schedule(ChangeSysIdArg),
+    /// Change task operations.
+    Task {
+        #[command(subcommand)]
+        sub: ChangeTaskSub,
+    },
+    /// CI relationship operations on a change.
+    Ci {
+        #[command(subcommand)]
+        sub: ChangeCiSub,
+    },
+    /// Conflict operations on a change.
+    Conflict {
+        #[command(subcommand)]
+        sub: ChangeConflictSub,
+    },
+    /// List change models.
+    Models(ChangeOptionalIdArg),
+    /// List standard change templates.
+    Templates(ChangeOptionalIdArg),
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+#[value(rename_all = "lowercase")]
+pub enum ChangeType {
+    Normal,
+    Emergency,
+    Standard,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeListArgs {
+    /// Filter by change type.
+    #[arg(long, value_enum)]
+    pub r#type: Option<ChangeType>,
+    #[arg(long, alias = "sysparm-query")]
+    pub query: Option<String>,
+    #[arg(long, alias = "sysparm-fields")]
+    pub fields: Option<String>,
+    #[arg(long, alias = "sysparm-limit", alias = "limit", default_value_t = 1000)]
+    pub setlimit: u32,
+    #[arg(long, alias = "sysparm-offset")]
+    pub offset: Option<u32>,
+    #[arg(long, alias = "sysparm-display-value", value_enum)]
+    pub display_value: Option<DisplayValueArg>,
+    #[arg(long, alias = "sysparm-exclude-reference-link")]
+    pub exclude_reference_link: bool,
+    #[arg(long, alias = "sysparm-view")]
+    pub view: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeGetArgs {
+    pub sys_id: String,
+    /// Get a specific change type (uses type-specific endpoint).
+    #[arg(long, value_enum)]
+    pub r#type: Option<ChangeType>,
+    #[arg(long, alias = "sysparm-fields")]
+    pub fields: Option<String>,
+    #[arg(long, alias = "sysparm-display-value", value_enum)]
+    pub display_value: Option<DisplayValueArg>,
+    #[arg(long, alias = "sysparm-exclude-reference-link")]
+    pub exclude_reference_link: bool,
+    #[arg(long, alias = "sysparm-view")]
+    pub view: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeCreateArgs {
+    /// Change type: normal, emergency, or standard.
+    #[arg(long, value_enum, default_value_t = ChangeType::Normal)]
+    pub r#type: ChangeType,
+    /// Standard change template sys_id (required for --type standard).
+    #[arg(long)]
+    pub template: Option<String>,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+    #[arg(long, alias = "sysparm-fields")]
+    pub fields: Option<String>,
+    #[arg(long, alias = "sysparm-display-value", value_enum)]
+    pub display_value: Option<DisplayValueArg>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeUpdateArgs {
+    pub sys_id: String,
+    #[arg(long, value_enum)]
+    pub r#type: Option<ChangeType>,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+    #[arg(long, alias = "sysparm-fields")]
+    pub fields: Option<String>,
+    #[arg(long, alias = "sysparm-display-value", value_enum)]
+    pub display_value: Option<DisplayValueArg>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeDeleteArgs {
+    pub sys_id: String,
+    #[arg(long, value_enum)]
+    pub r#type: Option<ChangeType>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeSysIdArg {
+    pub sys_id: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeOptionalIdArg {
+    pub sys_id: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeApprovalsArgs {
+    pub sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeRiskArgs {
+    pub sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ChangeTaskSub {
+    /// List tasks for a change.
+    List(ChangeTaskListArgs),
+    /// Get a specific change task.
+    Get(ChangeTaskGetArgs),
+    /// Create a task on a change.
+    Create(ChangeTaskCreateArgs),
+    /// Update a change task (PATCH).
+    Update(ChangeTaskUpdateArgs),
+    /// Delete a change task.
+    Delete(ChangeTaskDeleteArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeTaskListArgs {
+    pub change_sys_id: String,
+    #[arg(long, alias = "sysparm-fields")]
+    pub fields: Option<String>,
+    #[arg(long, alias = "sysparm-limit", alias = "limit", default_value_t = 100)]
+    pub setlimit: u32,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeTaskGetArgs {
+    pub change_sys_id: String,
+    pub task_sys_id: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeTaskCreateArgs {
+    pub change_sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeTaskUpdateArgs {
+    pub change_sys_id: String,
+    pub task_sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeTaskDeleteArgs {
+    pub change_sys_id: String,
+    pub task_sys_id: String,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ChangeCiSub {
+    /// List CIs associated with a change.
+    List(ChangeSysIdArg),
+    /// Add a CI to a change.
+    Add(ChangeCiAddArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeCiAddArgs {
+    pub change_sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ChangeConflictSub {
+    /// Get conflicts for a change.
+    Get(ChangeSysIdArg),
+    /// Add a conflict to a change.
+    Add(ChangeConflictAddArgs),
+    /// Remove conflicts from a change.
+    Remove(ChangeSysIdArg),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ChangeConflictAddArgs {
+    pub sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
 
 fn base_path(ct: Option<ChangeType>) -> &'static str {
     match ct {
@@ -48,7 +287,7 @@ pub fn list(global: &GlobalFlags, args: ChangeListArgs) -> Result<()> {
     let resp = client.get(path, &query)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn get(global: &GlobalFlags, args: ChangeGetArgs) -> Result<()> {
@@ -72,7 +311,7 @@ pub fn get(global: &GlobalFlags, args: ChangeGetArgs) -> Result<()> {
     let resp = client.get(&path, &query)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn create(global: &GlobalFlags, args: ChangeCreateArgs) -> Result<()> {
@@ -106,7 +345,7 @@ pub fn create(global: &GlobalFlags, args: ChangeCreateArgs) -> Result<()> {
     let resp = client.post(&path, &query, &body)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn update(global: &GlobalFlags, args: ChangeUpdateArgs) -> Result<()> {
@@ -132,7 +371,7 @@ pub fn update(global: &GlobalFlags, args: ChangeUpdateArgs) -> Result<()> {
     let resp = client.patch(&path, &query, &body)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn delete(global: &GlobalFlags, args: ChangeDeleteArgs) -> Result<()> {
@@ -150,7 +389,7 @@ pub fn nextstates(global: &GlobalFlags, args: ChangeSysIdArg) -> Result<()> {
     let resp = client.get(&path, &[])?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn approvals(global: &GlobalFlags, args: ChangeApprovalsArgs) -> Result<()> {
@@ -168,7 +407,7 @@ pub fn approvals(global: &GlobalFlags, args: ChangeApprovalsArgs) -> Result<()> 
     let resp = client.patch(&path, &[], &body)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn risk(global: &GlobalFlags, args: ChangeRiskArgs) -> Result<()> {
@@ -186,7 +425,7 @@ pub fn risk(global: &GlobalFlags, args: ChangeRiskArgs) -> Result<()> {
     let resp = client.patch(&path, &[], &body)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn schedule(global: &GlobalFlags, args: ChangeSysIdArg) -> Result<()> {
@@ -196,7 +435,7 @@ pub fn schedule(global: &GlobalFlags, args: ChangeSysIdArg) -> Result<()> {
     let resp = client.get(&path, &[])?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn models(global: &GlobalFlags, args: ChangeOptionalIdArg) -> Result<()> {
@@ -209,7 +448,7 @@ pub fn models(global: &GlobalFlags, args: ChangeOptionalIdArg) -> Result<()> {
     let resp = client.get(&path, &[])?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn templates(global: &GlobalFlags, args: ChangeOptionalIdArg) -> Result<()> {
@@ -222,7 +461,7 @@ pub fn templates(global: &GlobalFlags, args: ChangeOptionalIdArg) -> Result<()> 
     let resp = client.get(&path, &[])?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn task(global: &GlobalFlags, sub: ChangeTaskSub) -> Result<()> {
@@ -247,7 +486,7 @@ fn task_list(global: &GlobalFlags, args: ChangeTaskListArgs) -> Result<()> {
     let resp = client.get(&path, &query)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 fn task_get(global: &GlobalFlags, args: ChangeTaskGetArgs) -> Result<()> {
@@ -260,7 +499,7 @@ fn task_get(global: &GlobalFlags, args: ChangeTaskGetArgs) -> Result<()> {
     let resp = client.get(&path, &[])?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 fn task_create(global: &GlobalFlags, args: ChangeTaskCreateArgs) -> Result<()> {
@@ -278,7 +517,7 @@ fn task_create(global: &GlobalFlags, args: ChangeTaskCreateArgs) -> Result<()> {
     let resp = client.post(&path, &[], &body)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 fn task_update(global: &GlobalFlags, args: ChangeTaskUpdateArgs) -> Result<()> {
@@ -299,7 +538,7 @@ fn task_update(global: &GlobalFlags, args: ChangeTaskUpdateArgs) -> Result<()> {
     let resp = client.patch(&path, &[], &body)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 fn task_delete(global: &GlobalFlags, args: ChangeTaskDeleteArgs) -> Result<()> {
@@ -327,7 +566,7 @@ fn ci_list(global: &GlobalFlags, args: ChangeSysIdArg) -> Result<()> {
     let resp = client.get(&path, &[])?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 fn ci_add(global: &GlobalFlags, args: ChangeCiAddArgs) -> Result<()> {
@@ -345,7 +584,7 @@ fn ci_add(global: &GlobalFlags, args: ChangeCiAddArgs) -> Result<()> {
     let resp = client.post(&path, &[], &body)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn conflict(global: &GlobalFlags, sub: ChangeConflictSub) -> Result<()> {
@@ -363,7 +602,7 @@ fn conflict_get(global: &GlobalFlags, args: ChangeSysIdArg) -> Result<()> {
     let resp = client.get(&path, &[])?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 fn conflict_add(global: &GlobalFlags, args: ChangeConflictAddArgs) -> Result<()> {
@@ -381,7 +620,7 @@ fn conflict_add(global: &GlobalFlags, args: ChangeConflictAddArgs) -> Result<()>
     let resp = client.post(&path, &[], &body)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 fn conflict_remove(global: &GlobalFlags, args: ChangeSysIdArg) -> Result<()> {

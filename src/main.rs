@@ -13,6 +13,7 @@ fn main() -> ExitCode {
     sn::observability::set_level(cli.global.verbose);
     match run(cli) {
         Ok(()) => ExitCode::SUCCESS,
+        Err(sn::error::Error::BrokenPipe) => ExitCode::SUCCESS,
         Err(err) => {
             let _ = emit_error(io::stderr().lock(), &err);
             ExitCode::from(err.exit_code() as u8)
@@ -21,9 +22,11 @@ fn main() -> ExitCode {
 }
 
 fn run(cli: Cli) -> Result<()> {
-    let Cli { global, command } = cli;
+    let Cli {
+        global, command, ..
+    } = cli;
     match command {
-        Command::Init(args) => sn::cli::init::run(args),
+        Command::Init(args) => sn::cli::init::run(&global, args),
         Command::Auth { sub } => match sub {
             AuthSub::Test => sn::cli::auth::test(&global),
         },

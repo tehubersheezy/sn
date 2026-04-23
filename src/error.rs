@@ -29,12 +29,17 @@ pub enum Error {
 
     #[error("transport error: {0}")]
     Transport(String),
+
+    /// Downstream consumer closed the pipe (e.g. `sn … | head`). Silent exit 0.
+    #[error("broken pipe")]
+    BrokenPipe,
 }
 
 impl Error {
     /// Map each error variant to the exit code defined in spec §6.5.
     pub fn exit_code(&self) -> i32 {
         match self {
+            Error::BrokenPipe => 0,
             Error::Usage(_) | Error::Config(_) => 1,
             Error::Api { .. } => 2,
             Error::Transport(_) => 3,
@@ -61,6 +66,7 @@ impl Error {
             sn_error: Option<&'a serde_json::Value>,
         }
         let (message, detail, status_code, tx, sn) = match self {
+            Error::BrokenPipe => ("broken pipe".to_string(), None, None, None, None),
             Error::Usage(m) => (m.clone(), None, None, None, None),
             Error::Config(m) => (m.clone(), None, None, None, None),
             Error::Api {

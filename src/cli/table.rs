@@ -1,8 +1,5 @@
 use crate::body::{build_body, BodyInput};
-use crate::cli::{
-    DisplayValueArg, GlobalFlags, OutputMode, TableCreateArgs, TableDeleteArgs, TableGetArgs,
-    TableListArgs, TableReplaceArgs, TableUpdateArgs,
-};
+use crate::cli::{GlobalFlags, OutputMode};
 use crate::client::Client;
 use crate::config::{
     config_path, credentials_path, load_config_from, load_credentials_from, resolve_profile,
@@ -11,10 +8,197 @@ use crate::config::{
 use crate::error::{Error, Result};
 use crate::output::{emit_value, Format, ResolvedFormat};
 use crate::query::{DeleteQuery, GetQuery, ListQuery, WriteQuery};
+use clap::{Subcommand, ValueEnum};
 use is_terminal::IsTerminal;
 use serde_json::Value;
-use std::io::{self, Write};
+use std::io;
 use std::time::Duration;
+
+#[derive(Subcommand, Debug)]
+pub enum TableSub {
+    #[command(about = "List records")]
+    List(TableListArgs),
+    #[command(about = "Get a single record by sys_id")]
+    Get(TableGetArgs),
+    #[command(about = "Create a record")]
+    Create(TableCreateArgs),
+    #[command(about = "Patch a record (partial update)")]
+    Update(TableUpdateArgs),
+    #[command(about = "Replace a record (PUT, full overwrite)")]
+    Replace(TableReplaceArgs),
+    #[command(about = "Delete a record")]
+    Delete(TableDeleteArgs),
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+#[value(rename_all = "lowercase")]
+pub enum DisplayValueArg {
+    True,
+    False,
+    All,
+}
+
+impl From<DisplayValueArg> for crate::query::DisplayValue {
+    fn from(v: DisplayValueArg) -> Self {
+        match v {
+            DisplayValueArg::True => crate::query::DisplayValue::True,
+            DisplayValueArg::False => crate::query::DisplayValue::False,
+            DisplayValueArg::All => crate::query::DisplayValue::All,
+        }
+    }
+}
+
+#[derive(clap::Args, Debug)]
+pub struct TableListArgs {
+    /// Table name (e.g. `incident`).
+    pub table: String,
+    /// Encoded query, e.g. `active=true^priority=1`.
+    #[arg(long, alias = "sysparm-query")]
+    pub query: Option<String>,
+    /// Comma-separated fields to return.
+    #[arg(long, alias = "sysparm-fields")]
+    pub fields: Option<String>,
+    /// Maximum records returned (default 1000). Maps to sysparm_limit.
+    #[arg(
+        long,
+        alias = "limit",
+        alias = "sysparm-limit",
+        alias = "page-size",
+        default_value_t = 1000
+    )]
+    pub setlimit: u32,
+    /// Starting offset for manual pagination (ignored with --all).
+    #[arg(long, alias = "sysparm-offset")]
+    pub offset: Option<u32>,
+    /// Resolve reference/choice fields: false (default), true, or all.
+    #[arg(long, alias = "sysparm-display-value", value_enum)]
+    pub display_value: Option<DisplayValueArg>,
+    /// Strip reference-link URLs from reference fields.
+    #[arg(long, alias = "sysparm-exclude-reference-link")]
+    pub exclude_reference_link: bool,
+    /// Skip X-Total-Count calculation.
+    #[arg(long, alias = "sysparm-suppress-pagination-header")]
+    pub suppress_pagination_header: bool,
+    /// Apply a named form/list view.
+    #[arg(long, alias = "sysparm-view")]
+    pub view: Option<String>,
+    /// Query category for index selection.
+    #[arg(long, alias = "sysparm-query-category")]
+    pub query_category: Option<String>,
+    /// Cross-domain access if authorized.
+    #[arg(long, alias = "sysparm-query-no-domain")]
+    pub query_no_domain: bool,
+    /// Skip the count query.
+    #[arg(long, alias = "sysparm-no-count")]
+    pub no_count: bool,
+    /// Auto-paginate: stream every matching record (JSONL unless --array).
+    #[arg(long)]
+    pub all: bool,
+    /// With --all, buffer into a single JSON array instead of JSONL.
+    #[arg(long, requires = "all")]
+    pub array: bool,
+    /// Cap total records returned (default 100000; 0 = unlimited).
+    #[arg(long, default_value_t = 100_000)]
+    pub max_records: u32,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct TableGetArgs {
+    pub table: String,
+    pub sys_id: String,
+    #[arg(long, alias = "sysparm-fields")]
+    pub fields: Option<String>,
+    #[arg(long, alias = "sysparm-display-value", value_enum)]
+    pub display_value: Option<DisplayValueArg>,
+    #[arg(long, alias = "sysparm-exclude-reference-link")]
+    pub exclude_reference_link: bool,
+    #[arg(long, alias = "sysparm-view")]
+    pub view: Option<String>,
+    #[arg(long, alias = "sysparm-query-no-domain")]
+    pub query_no_domain: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct TableCreateArgs {
+    pub table: String,
+    /// Inline JSON, @file, or @- for stdin.
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    /// Repeatable name=value. Mutually exclusive with --data.
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+    #[arg(long, alias = "sysparm-fields")]
+    pub fields: Option<String>,
+    #[arg(long, alias = "sysparm-display-value", value_enum)]
+    pub display_value: Option<DisplayValueArg>,
+    #[arg(long, alias = "sysparm-exclude-reference-link")]
+    pub exclude_reference_link: bool,
+    #[arg(long, alias = "sysparm-input-display-value")]
+    pub input_display_value: bool,
+    #[arg(long, alias = "sysparm-suppress-auto-sys-field")]
+    pub suppress_auto_sys_field: bool,
+    #[arg(long, alias = "sysparm-view")]
+    pub view: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct TableUpdateArgs {
+    pub table: String,
+    pub sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+    #[arg(long, alias = "sysparm-fields")]
+    pub fields: Option<String>,
+    #[arg(long, alias = "sysparm-display-value", value_enum)]
+    pub display_value: Option<DisplayValueArg>,
+    #[arg(long, alias = "sysparm-exclude-reference-link")]
+    pub exclude_reference_link: bool,
+    #[arg(long, alias = "sysparm-input-display-value")]
+    pub input_display_value: bool,
+    #[arg(long, alias = "sysparm-suppress-auto-sys-field")]
+    pub suppress_auto_sys_field: bool,
+    #[arg(long, alias = "sysparm-view")]
+    pub view: Option<String>,
+    #[arg(long, alias = "sysparm-query-no-domain")]
+    pub query_no_domain: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct TableReplaceArgs {
+    pub table: String,
+    pub sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+    #[arg(long, alias = "sysparm-fields")]
+    pub fields: Option<String>,
+    #[arg(long, alias = "sysparm-display-value", value_enum)]
+    pub display_value: Option<DisplayValueArg>,
+    #[arg(long, alias = "sysparm-exclude-reference-link")]
+    pub exclude_reference_link: bool,
+    #[arg(long, alias = "sysparm-input-display-value")]
+    pub input_display_value: bool,
+    #[arg(long, alias = "sysparm-suppress-auto-sys-field")]
+    pub suppress_auto_sys_field: bool,
+    #[arg(long, alias = "sysparm-view")]
+    pub view: Option<String>,
+    #[arg(long, alias = "sysparm-query-no-domain")]
+    pub query_no_domain: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct TableDeleteArgs {
+    pub table: String,
+    pub sys_id: String,
+    /// Skip confirmation prompt (required for non-interactive use).
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+    #[arg(long, alias = "sysparm-query-no-domain")]
+    pub query_no_domain: bool,
+}
 
 pub fn list(global: &GlobalFlags, args: TableListArgs) -> Result<()> {
     let profile = build_profile(global)?;
@@ -57,16 +241,12 @@ pub fn list(global: &GlobalFlags, args: TableListArgs) -> Result<()> {
                 &Value::Array(out),
                 format_from_flags(global),
             )
-            .map_err(|e| Error::Usage(format!("stdout: {e}")))?;
+            .map_err(crate::output::map_stdout_err)?;
         } else {
             let mut stdout = io::stdout().lock();
             for r in it {
                 let v = r?;
-                serde_json::to_writer(&mut stdout, &v)
-                    .map_err(|e| Error::Usage(format!("stdout: {e}")))?;
-                stdout
-                    .write_all(b"\n")
-                    .map_err(|e| Error::Usage(format!("stdout: {e}")))?;
+                crate::output::write_jsonl_line(&mut stdout, &v)?;
             }
         }
         return Ok(());
@@ -75,7 +255,7 @@ pub fn list(global: &GlobalFlags, args: TableListArgs) -> Result<()> {
     let resp: Value = client.get(&path, &q.to_pairs())?;
     let out = unwrap_or_raw(resp, global.output);
     let fmt = format_from_flags(global);
-    emit_value(io::stdout().lock(), &out, fmt).map_err(|e| Error::Usage(format!("stdout: {e}")))?;
+    emit_value(io::stdout().lock(), &out, fmt).map_err(crate::output::map_stdout_err)?;
     Ok(())
 }
 
@@ -169,7 +349,7 @@ pub fn get(global: &GlobalFlags, args: TableGetArgs) -> Result<()> {
     let resp = client.get(&path, &q.to_pairs())?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn create(global: &GlobalFlags, args: TableCreateArgs) -> Result<()> {
@@ -200,7 +380,7 @@ pub fn create(global: &GlobalFlags, args: TableCreateArgs) -> Result<()> {
     let resp = client.post(&path, &q.to_pairs(), &body)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn update(global: &GlobalFlags, args: TableUpdateArgs) -> Result<()> {
@@ -289,7 +469,7 @@ fn write_op(
     };
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn delete(global: &GlobalFlags, args: TableDeleteArgs) -> Result<()> {

@@ -1,13 +1,130 @@
 use crate::body::{build_body, BodyInput};
 use crate::cli::table::{build_client, build_profile, format_from_flags, unwrap_or_raw};
-use crate::cli::{
-    CatalogCartEmptyArgs, CatalogCartItemArgs, CatalogCartUpdateArgs, CatalogCategoriesArgs,
-    CatalogCategoryArgs, CatalogGetArgs, CatalogItemArgs, CatalogItemsArgs, CatalogListArgs,
-    CatalogOrderArgs, GlobalFlags,
-};
-use crate::error::{Error, Result};
+use crate::cli::GlobalFlags;
+use crate::error::Result;
 use crate::output::emit_value;
+use clap::Subcommand;
 use std::io;
+
+#[derive(Subcommand, Debug)]
+pub enum CatalogSub {
+    /// List service catalogs.
+    List(CatalogListArgs),
+    /// Get a specific catalog.
+    Get(CatalogGetArgs),
+    /// List categories for a catalog.
+    Categories(CatalogCategoriesArgs),
+    /// Get a specific category.
+    Category(CatalogCategoryArgs),
+    /// List catalog items.
+    Items(CatalogItemsArgs),
+    /// Get a specific catalog item.
+    Item(CatalogItemArgs),
+    /// Get variables for a catalog item.
+    ItemVariables(CatalogItemArgs),
+    /// Order a catalog item immediately.
+    Order(CatalogOrderArgs),
+    /// Add a catalog item to cart.
+    AddToCart(CatalogOrderArgs),
+    /// Get the current cart.
+    Cart,
+    /// Update a cart item.
+    CartUpdate(CatalogCartUpdateArgs),
+    /// Remove an item from cart.
+    CartRemove(CatalogCartItemArgs),
+    /// Empty the cart.
+    CartEmpty(CatalogCartEmptyArgs),
+    /// Check out the cart.
+    Checkout,
+    /// Submit the cart order.
+    SubmitOrder,
+    /// Get the wishlist.
+    Wishlist,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CatalogListArgs {
+    /// Search text for catalogs.
+    #[arg(long, alias = "sysparm-text")]
+    pub text: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CatalogGetArgs {
+    pub sys_id: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CatalogCategoriesArgs {
+    /// Catalog sys_id.
+    pub catalog_sys_id: String,
+    #[arg(long, alias = "sysparm-limit", alias = "limit", default_value_t = 100)]
+    pub setlimit: u32,
+    #[arg(long, alias = "sysparm-offset")]
+    pub offset: Option<u32>,
+    /// Show only top-level categories.
+    #[arg(long, alias = "sysparm-top-level-only")]
+    pub top_level_only: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CatalogCategoryArgs {
+    pub sys_id: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CatalogItemsArgs {
+    /// Search text for items.
+    #[arg(long, alias = "sysparm-text")]
+    pub text: Option<String>,
+    /// Filter by category sys_id.
+    #[arg(long, alias = "sysparm-category")]
+    pub category: Option<String>,
+    /// Filter by catalog sys_id.
+    #[arg(long, alias = "sysparm-catalog")]
+    pub catalog: Option<String>,
+    /// Filter by type (e.g. `record_producer`).
+    #[arg(long, alias = "sysparm-type")]
+    pub item_type: Option<String>,
+    #[arg(long, alias = "sysparm-limit", alias = "limit", default_value_t = 100)]
+    pub setlimit: u32,
+    #[arg(long, alias = "sysparm-offset")]
+    pub offset: Option<u32>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CatalogItemArgs {
+    pub sys_id: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CatalogOrderArgs {
+    pub sys_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CatalogCartUpdateArgs {
+    pub cart_item_id: String,
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CatalogCartItemArgs {
+    pub cart_item_id: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CatalogCartEmptyArgs {
+    /// Cart sys_id.
+    pub sys_id: String,
+}
 
 const BASE: &str = "/api/sn_sc/servicecatalog";
 
@@ -21,7 +138,7 @@ pub fn list(global: &GlobalFlags, args: CatalogListArgs) -> Result<()> {
     let resp = client.get(&format!("{BASE}/catalogs"), &query)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn get(global: &GlobalFlags, args: CatalogGetArgs) -> Result<()> {
@@ -31,7 +148,7 @@ pub fn get(global: &GlobalFlags, args: CatalogGetArgs) -> Result<()> {
     let resp = client.get(&path, &[])?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn categories(global: &GlobalFlags, args: CatalogCategoriesArgs) -> Result<()> {
@@ -49,7 +166,7 @@ pub fn categories(global: &GlobalFlags, args: CatalogCategoriesArgs) -> Result<(
     let resp = client.get(&path, &query)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn category(global: &GlobalFlags, args: CatalogCategoryArgs) -> Result<()> {
@@ -59,7 +176,7 @@ pub fn category(global: &GlobalFlags, args: CatalogCategoryArgs) -> Result<()> {
     let resp = client.get(&path, &[])?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn items(global: &GlobalFlags, args: CatalogItemsArgs) -> Result<()> {
@@ -85,7 +202,7 @@ pub fn items(global: &GlobalFlags, args: CatalogItemsArgs) -> Result<()> {
     let resp = client.get(&format!("{BASE}/items"), &query)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn item(global: &GlobalFlags, args: CatalogItemArgs) -> Result<()> {
@@ -95,7 +212,7 @@ pub fn item(global: &GlobalFlags, args: CatalogItemArgs) -> Result<()> {
     let resp = client.get(&path, &[])?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn item_variables(global: &GlobalFlags, args: CatalogItemArgs) -> Result<()> {
@@ -105,7 +222,7 @@ pub fn item_variables(global: &GlobalFlags, args: CatalogItemArgs) -> Result<()>
     let resp = client.get(&path, &[])?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn order(global: &GlobalFlags, args: CatalogOrderArgs) -> Result<()> {
@@ -123,7 +240,7 @@ pub fn order(global: &GlobalFlags, args: CatalogOrderArgs) -> Result<()> {
     let resp = client.post(&path, &[], &body)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn add_to_cart(global: &GlobalFlags, args: CatalogOrderArgs) -> Result<()> {
@@ -141,7 +258,7 @@ pub fn add_to_cart(global: &GlobalFlags, args: CatalogOrderArgs) -> Result<()> {
     let resp = client.post(&path, &[], &body)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn cart(global: &GlobalFlags) -> Result<()> {
@@ -150,7 +267,7 @@ pub fn cart(global: &GlobalFlags) -> Result<()> {
     let resp = client.get(&format!("{BASE}/cart"), &[])?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn cart_update(global: &GlobalFlags, args: CatalogCartUpdateArgs) -> Result<()> {
@@ -168,7 +285,7 @@ pub fn cart_update(global: &GlobalFlags, args: CatalogCartUpdateArgs) -> Result<
     let resp = client.put(&path, &[], &body)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn cart_remove(global: &GlobalFlags, args: CatalogCartItemArgs) -> Result<()> {
@@ -197,7 +314,7 @@ pub fn checkout(global: &GlobalFlags) -> Result<()> {
     )?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn submit_order(global: &GlobalFlags) -> Result<()> {
@@ -210,7 +327,7 @@ pub fn submit_order(global: &GlobalFlags) -> Result<()> {
     )?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn wishlist(global: &GlobalFlags) -> Result<()> {
@@ -219,5 +336,5 @@ pub fn wishlist(global: &GlobalFlags) -> Result<()> {
     let resp = client.get(&format!("{BASE}/wishlist"), &[])?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }

@@ -1,10 +1,16 @@
 use crate::cli::table::{build_client, build_profile, format_from_flags, unwrap_or_raw};
-use crate::cli::{GlobalFlags, OutputMode, ProgressArgs};
+use crate::cli::{GlobalFlags, OutputMode};
 use crate::client::Client;
 use crate::error::{Error, Result};
 use crate::output::emit_value;
 use serde_json::Value;
 use std::io;
+
+#[derive(clap::Args, Debug)]
+pub struct ProgressArgs {
+    /// Progress ID returned by app/updateset/atf operations.
+    pub progress_id: String,
+}
 
 pub fn run(global: &GlobalFlags, args: ProgressArgs) -> Result<()> {
     let profile = build_profile(global)?;
@@ -13,7 +19,7 @@ pub fn run(global: &GlobalFlags, args: ProgressArgs) -> Result<()> {
     let resp = client.get(&path, &[])?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 /// Poll `GET /api/sn_cicd/progress/{progress_id}` in a loop until the operation

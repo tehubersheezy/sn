@@ -1,8 +1,47 @@
-use crate::cli::{AggregateArgs, GlobalFlags};
-use crate::error::{Error, Result};
+use crate::cli::{DisplayValueArg, GlobalFlags};
+use crate::error::Result;
 use crate::output::emit_value;
 
 use super::table::{bool_opt, build_client, build_profile, format_from_flags, unwrap_or_raw};
+
+#[derive(clap::Args, Debug)]
+pub struct AggregateArgs {
+    /// Table name (e.g. `incident`).
+    pub table: String,
+    /// Encoded query filter.
+    #[arg(long, alias = "sysparm-query")]
+    pub query: Option<String>,
+    /// Comma-separated fields to average.
+    #[arg(long, alias = "sysparm-avg-fields")]
+    pub avg_fields: Option<String>,
+    /// Count the number of records in the query.
+    #[arg(long, alias = "sysparm-count")]
+    pub count: bool,
+    /// Comma-separated fields for minimum value.
+    #[arg(long, alias = "sysparm-min-fields")]
+    pub min_fields: Option<String>,
+    /// Comma-separated fields for maximum value.
+    #[arg(long, alias = "sysparm-max-fields")]
+    pub max_fields: Option<String>,
+    /// Comma-separated fields to sum.
+    #[arg(long, alias = "sysparm-sum-fields")]
+    pub sum_fields: Option<String>,
+    /// Comma-separated fields to group by.
+    #[arg(long, alias = "sysparm-group-by")]
+    pub group_by: Option<String>,
+    /// Comma-separated fields to order by.
+    #[arg(long, alias = "sysparm-order-by")]
+    pub order_by: Option<String>,
+    /// Aggregate filter (HAVING clause).
+    #[arg(long, alias = "sysparm-having")]
+    pub having: Option<String>,
+    /// Resolve reference/choice fields: false (default), true, or all.
+    #[arg(long, alias = "sysparm-display-value", value_enum)]
+    pub display_value: Option<DisplayValueArg>,
+    /// Query category for index selection.
+    #[arg(long, alias = "sysparm-query-category")]
+    pub query_category: Option<String>,
+}
 
 pub fn run(global: &GlobalFlags, args: AggregateArgs) -> Result<()> {
     let profile = build_profile(global)?;
@@ -48,5 +87,5 @@ pub fn run(global: &GlobalFlags, args: AggregateArgs) -> Result<()> {
     let resp = client.get(&path, &q)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(std::io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }

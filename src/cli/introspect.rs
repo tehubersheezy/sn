@@ -1,5 +1,5 @@
 use crate::cli::Cli;
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::output::{emit_value, Format};
 use clap::{Arg, Command as ClapCommand, CommandFactory};
 use serde_json::{json, Value};
@@ -9,7 +9,7 @@ pub fn run() -> Result<()> {
     let cmd = Cli::command();
     let tree = describe_command(&cmd, "sn");
     emit_value(io::stdout().lock(), &tree, Format::Auto.resolve())
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 fn describe_command(cmd: &ClapCommand, name: &str) -> Value {

@@ -1,9 +1,48 @@
 use crate::cli::table::{build_client, build_profile, format_from_flags};
-use crate::cli::{GlobalFlags, OutputMode, SchemaChoicesArgs, SchemaColumnsArgs, SchemaTablesArgs};
+use crate::cli::{GlobalFlags, OutputMode};
 use crate::error::{Error, Result};
 use crate::output::emit_value;
+use clap::Subcommand;
 use serde_json::Value;
 use std::io;
+
+#[derive(Subcommand, Debug)]
+pub enum SchemaSub {
+    Tables(SchemaTablesArgs),
+    Columns(SchemaColumnsArgs),
+    Choices(SchemaChoicesArgs),
+}
+
+#[derive(clap::Args, Debug, Default)]
+pub struct SchemaTablesArgs {
+    #[arg(long)]
+    pub filter: Option<String>,
+    #[arg(long)]
+    pub reference_only: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct SchemaColumnsArgs {
+    pub table: String,
+    #[arg(long)]
+    pub filter: Option<String>,
+    #[arg(long, value_name = "TYPE")]
+    pub r#type: Option<String>,
+    #[arg(long)]
+    pub mandatory: bool,
+    #[arg(long)]
+    pub writable: bool,
+    #[arg(long)]
+    pub choices_only: bool,
+    #[arg(long)]
+    pub references_only: bool,
+}
+
+#[derive(clap::Args, Debug, Default)]
+pub struct SchemaChoicesArgs {
+    pub table: String,
+    pub field: String,
+}
 
 pub fn tables(global: &GlobalFlags, args: SchemaTablesArgs) -> Result<()> {
     let profile = build_profile(global)?;
@@ -15,7 +54,7 @@ pub fn tables(global: &GlobalFlags, args: SchemaTablesArgs) -> Result<()> {
         _ => resp.clone(),
     };
     let fmt = format_from_flags(global);
-    emit_value(io::stdout().lock(), &list, fmt).map_err(|e| Error::Usage(format!("stdout: {e}")))
+    emit_value(io::stdout().lock(), &list, fmt).map_err(crate::output::map_stdout_err)
 }
 
 fn filter_tables(items: Vec<Value>, args: &SchemaTablesArgs) -> Vec<Value> {
@@ -68,7 +107,7 @@ pub fn columns(global: &GlobalFlags, args: SchemaColumnsArgs) -> Result<()> {
         }
     };
     emit_value(io::stdout().lock(), &list, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 fn filter_columns(cols: Value, args: &SchemaColumnsArgs) -> Vec<Value> {
@@ -144,5 +183,5 @@ pub fn choices(global: &GlobalFlags, args: SchemaChoicesArgs) -> Result<()> {
             })?,
     };
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }

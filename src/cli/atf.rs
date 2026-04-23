@@ -1,8 +1,54 @@
 use crate::cli::table::{build_client, build_profile, format_from_flags, unwrap_or_raw};
-use crate::cli::{AtfResultsArgs, AtfRunArgs, GlobalFlags};
+use crate::cli::GlobalFlags;
 use crate::error::{Error, Result};
 use crate::output::emit_value;
+use clap::Subcommand;
 use std::io;
+
+#[derive(Subcommand, Debug)]
+pub enum AtfSub {
+    /// Run an ATF test suite.
+    Run(AtfRunArgs),
+    /// Get results for an ATF test suite run.
+    Results(AtfResultsArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct AtfRunArgs {
+    /// sys_id of the test suite.
+    #[arg(long)]
+    pub suite_id: Option<String>,
+    /// Name of the test suite.
+    #[arg(long)]
+    pub suite_name: Option<String>,
+    /// Browser name (e.g. `chrome`).
+    #[arg(long)]
+    pub browser_name: Option<String>,
+    /// Browser version.
+    #[arg(long)]
+    pub browser_version: Option<String>,
+    /// OS name.
+    #[arg(long)]
+    pub os_name: Option<String>,
+    /// OS version.
+    #[arg(long)]
+    pub os_version: Option<String>,
+    /// Run tests in cloud browser.
+    #[arg(long)]
+    pub run_in_cloud: bool,
+    /// Record performance metrics during the run.
+    #[arg(long)]
+    pub performance_run: bool,
+    /// Block until the operation completes (polls progress API).
+    #[arg(long)]
+    pub wait: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct AtfResultsArgs {
+    /// Test suite result sys_id.
+    pub result_id: String,
+}
 
 pub fn run(global: &GlobalFlags, args: AtfRunArgs) -> Result<()> {
     if args.suite_id.is_none() && args.suite_name.is_none() {
@@ -53,11 +99,11 @@ pub fn run(global: &GlobalFlags, args: AtfRunArgs) -> Result<()> {
                 &final_result,
                 format_from_flags(global),
             )
-            .map_err(|e| Error::Usage(format!("stdout: {e}")));
+            .map_err(crate::output::map_stdout_err);
         }
     }
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn results(global: &GlobalFlags, args: AtfResultsArgs) -> Result<()> {
@@ -67,5 +113,5 @@ pub fn results(global: &GlobalFlags, args: AtfResultsArgs) -> Result<()> {
     let resp = client.get(&path, &[])?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }

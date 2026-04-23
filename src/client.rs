@@ -1,10 +1,11 @@
 use crate::config::ResolvedProfile;
 use crate::error::{Error, Result};
+use crate::observability::{log_body, log_request, log_response, log_response_headers};
 use reqwest::blocking::{Client as ReqwestClient, Response};
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE, USER_AGENT};
 use reqwest::{Method, StatusCode};
 use serde_json::Value;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 pub struct Client {
     http: ReqwestClient,
@@ -161,13 +162,20 @@ fn normalize_base_url(instance: &str) -> String {
 
 fn parse_response(resp: Response) -> Result<Value> {
     let status = resp.status();
+    let tx = transaction_id(&resp);
+    log_response_headers(resp.headers());
+    let text = resp
+        .text()
+        .map_err(|e| Error::Transport(format!("read body: {e}")))?;
+    log_body("<", &text);
     if status.is_success() {
-        return resp
-            .json::<Value>()
+        if text.is_empty() {
+            return Ok(Value::Null);
+        }
+        return serde_json::from_str(&text)
             .map_err(|e| Error::Transport(format!("parse response: {e}")));
     }
-    let tx = transaction_id(&resp);
-    Err(from_http(status, tx, resp))
+    Err(from_http_text(status, tx, &text))
 }
 
 impl Client {
@@ -175,89 +183,65 @@ impl Client {
         ClientBuilder::default()
     }
 
+    fn url(&self, path: &str) -> String {
+        format!("{}{}", self.base_url, path)
+    }
+
+    fn send(
+        &self,
+        mut req: reqwest::blocking::RequestBuilder,
+        method_name: &str,
+        url: &str,
+    ) -> Result<Response> {
+        req = req.basic_auth(&self.username, Some(&self.password));
+        log_request(method_name, url);
+        let start = Instant::now();
+        let resp = req.send().map_err(|e| Error::Transport(format!("{e}")))?;
+        log_response(resp.status().as_u16(), start.elapsed().as_millis());
+        Ok(resp)
+    }
+
+    /// Single JSON request/response pipeline used by every verb.
+    fn request(
+        &self,
+        method: Method,
+        path: &str,
+        query: &[(String, String)],
+        body: Option<&Value>,
+    ) -> Result<Value> {
+        let url = self.url(path);
+        let mut req = self.http.request(method.clone(), &url).query(query);
+        if let Some(b) = body {
+            log_body(">", &b.to_string());
+            req = req.header(CONTENT_TYPE, "application/json").json(b);
+        }
+        parse_response(self.send(req, method.as_str(), &url)?)
+    }
+
     pub fn get(&self, path: &str, query: &[(String, String)]) -> Result<Value> {
-        let url = format!("{}{}", self.base_url, path);
-        let resp = self
-            .http
-            .request(Method::GET, &url)
-            .basic_auth(&self.username, Some(&self.password))
-            .query(query)
-            .send()
-            .map_err(|e| Error::Transport(format!("{e}")))?;
-        parse_response(resp)
+        self.request(Method::GET, path, query, None)
     }
 
     pub fn post(&self, path: &str, query: &[(String, String)], body: &Value) -> Result<Value> {
-        let url = format!("{}{}", self.base_url, path);
-        let resp = self
-            .http
-            .request(Method::POST, &url)
-            .basic_auth(&self.username, Some(&self.password))
-            .query(query)
-            .header(CONTENT_TYPE, "application/json")
-            .json(body)
-            .send()
-            .map_err(|e| Error::Transport(format!("{e}")))?;
-        parse_response(resp)
+        self.request(Method::POST, path, query, Some(body))
     }
 
     pub fn put(&self, path: &str, query: &[(String, String)], body: &Value) -> Result<Value> {
-        let url = format!("{}{}", self.base_url, path);
-        let resp = self
-            .http
-            .request(Method::PUT, &url)
-            .basic_auth(&self.username, Some(&self.password))
-            .query(query)
-            .header(CONTENT_TYPE, "application/json")
-            .json(body)
-            .send()
-            .map_err(|e| Error::Transport(format!("{e}")))?;
-        parse_response(resp)
+        self.request(Method::PUT, path, query, Some(body))
     }
 
     pub fn patch(&self, path: &str, query: &[(String, String)], body: &Value) -> Result<Value> {
-        let url = format!("{}{}", self.base_url, path);
-        let resp = self
-            .http
-            .request(Method::PATCH, &url)
-            .basic_auth(&self.username, Some(&self.password))
-            .query(query)
-            .header(CONTENT_TYPE, "application/json")
-            .json(body)
-            .send()
-            .map_err(|e| Error::Transport(format!("{e}")))?;
-        parse_response(resp)
+        self.request(Method::PATCH, path, query, Some(body))
     }
 
+    /// DELETE that expects no response body (returns unit on success).
     pub fn delete(&self, path: &str, query: &[(String, String)]) -> Result<()> {
-        let url = format!("{}{}", self.base_url, path);
-        let resp = self
-            .http
-            .request(Method::DELETE, &url)
-            .basic_auth(&self.username, Some(&self.password))
-            .query(query)
-            .send()
-            .map_err(|e| Error::Transport(format!("{e}")))?;
-        let status = resp.status();
-        if status.is_success() {
-            return Ok(());
-        }
-        let tx = transaction_id(&resp);
-        Err(from_http(status, tx, resp))
+        self.request(Method::DELETE, path, query, None).map(|_| ())
     }
-}
 
-impl Client {
+    /// DELETE that expects a JSON response body.
     pub fn delete_json(&self, path: &str, query: &[(String, String)]) -> Result<Value> {
-        let url = format!("{}{}", self.base_url, path);
-        let resp = self
-            .http
-            .request(Method::DELETE, &url)
-            .basic_auth(&self.username, Some(&self.password))
-            .query(query)
-            .send()
-            .map_err(|e| Error::Transport(format!("{e}")))?;
-        parse_response(resp)
+        self.request(Method::DELETE, path, query, None)
     }
 
     pub fn upload_file(
@@ -267,31 +251,30 @@ impl Client {
         body: Vec<u8>,
         content_type: &str,
     ) -> Result<Value> {
-        let url = format!("{}{}", self.base_url, path);
-        let resp = self
+        let url = self.url(path);
+        log_body(">", &format!("<{} bytes, {}>", body.len(), content_type));
+        let req = self
             .http
             .request(Method::POST, &url)
-            .basic_auth(&self.username, Some(&self.password))
             .query(query)
             .header(CONTENT_TYPE, content_type)
-            .body(body)
-            .send()
-            .map_err(|e| Error::Transport(format!("{e}")))?;
-        parse_response(resp)
+            .body(body);
+        parse_response(self.send(req, "POST", &url)?)
     }
 
     pub fn download_file(&self, path: &str) -> Result<(Vec<u8>, Option<String>)> {
-        let url = format!("{}{}", self.base_url, path);
-        let resp = self
-            .http
-            .request(Method::GET, &url)
-            .basic_auth(&self.username, Some(&self.password))
-            .send()
-            .map_err(|e| Error::Transport(format!("{e}")))?;
+        let url = self.url(path);
+        let req = self.http.request(Method::GET, &url);
+        let resp = self.send(req, "GET", &url)?;
         let status = resp.status();
+        let tx = transaction_id(&resp);
+        log_response_headers(resp.headers());
         if !status.is_success() {
-            let tx = transaction_id(&resp);
-            return Err(from_http(status, tx, resp));
+            let text = resp
+                .text()
+                .map_err(|e| Error::Transport(format!("read body: {e}")))?;
+            log_body("<", &text);
+            return Err(from_http_text(status, tx, &text));
         }
         let ct = resp
             .headers()
@@ -302,6 +285,7 @@ impl Client {
             .bytes()
             .map_err(|e| Error::Transport(format!("read body: {e}")))?
             .to_vec();
+        log_body("<", &format!("<{} bytes>", bytes.len()));
         Ok((bytes, ct))
     }
 }
@@ -356,14 +340,12 @@ impl<'a> Paginator<'a> {
             self.finished = true;
             return Ok(());
         };
-        let resp = self
+        let req = self
             .client
             .http
             .request(Method::GET, &url)
-            .basic_auth(&self.client.username, Some(&self.client.password))
-            .query(&self.next_query)
-            .send()
-            .map_err(|e| Error::Transport(format!("{e}")))?;
+            .query(&self.next_query);
+        let resp = self.client.send(req, "GET", &url)?;
         let status = resp.status();
         let tx = transaction_id(&resp);
         let link = resp
@@ -371,11 +353,15 @@ impl<'a> Paginator<'a> {
             .get("Link")
             .and_then(|v| v.to_str().ok())
             .map(ToString::to_string);
+        log_response_headers(resp.headers());
+        let text = resp
+            .text()
+            .map_err(|e| Error::Transport(format!("read body: {e}")))?;
+        log_body("<", &text);
         if !status.is_success() {
-            return Err(from_http(status, tx, resp));
+            return Err(from_http_text(status, tx, &text));
         }
-        let mut body: Value = resp
-            .json()
+        let mut body: Value = serde_json::from_str(&text)
             .map_err(|e| Error::Transport(format!("parse response: {e}")))?;
         if let Some(Value::Array(records)) = body.get_mut("result").map(Value::take) {
             for r in records {
@@ -440,8 +426,8 @@ fn transaction_id(resp: &Response) -> Option<String> {
         .map(ToString::to_string)
 }
 
-fn from_http(status: StatusCode, tx: Option<String>, resp: Response) -> Error {
-    let body: Option<Value> = resp.json().ok();
+fn from_http_text(status: StatusCode, tx: Option<String>, raw: &str) -> Error {
+    let body: Option<Value> = serde_json::from_str(raw).ok();
     let (message, detail, sn_error) = body
         .as_ref()
         .and_then(|v| v.get("error"))
@@ -457,7 +443,14 @@ fn from_http(status: StatusCode, tx: Option<String>, resp: Response) -> Error {
                 Some(err.clone()),
             )
         })
-        .unwrap_or_else(|| (format!("HTTP {status}"), None, None));
+        .unwrap_or_else(|| {
+            let fallback_detail = if raw.trim().is_empty() {
+                None
+            } else {
+                Some(truncate_body(raw, 500))
+            };
+            (format!("HTTP {status}"), fallback_detail, None)
+        });
     match status.as_u16() {
         401 | 403 => Error::Auth {
             status: status.as_u16(),
@@ -471,5 +464,15 @@ fn from_http(status: StatusCode, tx: Option<String>, resp: Response) -> Error {
             transaction_id: tx,
             sn_error,
         },
+    }
+}
+
+fn truncate_body(s: &str, max_chars: usize) -> String {
+    if s.chars().count() <= max_chars {
+        s.to_string()
+    } else {
+        let mut out: String = s.chars().take(max_chars).collect();
+        out.push('…');
+        out
     }
 }

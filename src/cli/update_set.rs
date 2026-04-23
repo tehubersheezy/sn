@@ -1,11 +1,96 @@
 use crate::cli::table::{build_client, build_profile, format_from_flags, unwrap_or_raw};
-use crate::cli::{
-    GlobalFlags, UpdateSetBackOutArgs, UpdateSetCommitMultipleArgs, UpdateSetCreateArgs,
-    UpdateSetIdArg, UpdateSetRetrieveArgs,
-};
-use crate::error::{Error, Result};
+use crate::cli::GlobalFlags;
+use crate::error::Result;
 use crate::output::emit_value;
+use clap::Subcommand;
 use std::io;
+
+#[derive(Subcommand, Debug)]
+pub enum UpdateSetSub {
+    /// Create a new Update Set.
+    Create(UpdateSetCreateArgs),
+    /// Retrieve a remote Update Set into this instance.
+    Retrieve(UpdateSetRetrieveArgs),
+    /// Preview a retrieved remote Update Set.
+    Preview(UpdateSetIdArg),
+    /// Commit a previewed remote Update Set.
+    Commit(UpdateSetIdArg),
+    /// Commit multiple remote Update Sets at once.
+    CommitMultiple(UpdateSetCommitMultipleArgs),
+    /// Back out (undo) an applied Update Set.
+    BackOut(UpdateSetBackOutArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct UpdateSetCreateArgs {
+    /// Name for the new Update Set (required).
+    #[arg(long, required = true)]
+    pub name: String,
+    /// Optional description.
+    #[arg(long)]
+    pub description: Option<String>,
+    /// sys_id to assign to the new Update Set.
+    #[arg(long)]
+    pub sys_id: Option<String>,
+    /// Application scope.
+    #[arg(long)]
+    pub scope: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct UpdateSetRetrieveArgs {
+    /// sys_id of the Update Set to retrieve (required).
+    #[arg(long, required = true)]
+    pub update_set_id: String,
+    /// sys_id of the source record.
+    #[arg(long)]
+    pub source_id: Option<String>,
+    /// Instance ID of the source ServiceNow instance.
+    #[arg(long)]
+    pub source_instance_id: Option<String>,
+    /// Automatically preview after retrieval.
+    #[arg(long)]
+    pub auto_preview: bool,
+    /// Clean up retrieved set after preview/commit.
+    #[arg(long)]
+    pub cleanup_retrieved: bool,
+    /// Block until the operation completes (polls progress API).
+    #[arg(long)]
+    pub wait: bool,
+}
+
+/// Shared arg struct for preview and commit (single path param).
+#[derive(clap::Args, Debug)]
+pub struct UpdateSetIdArg {
+    /// Remote Update Set sys_id.
+    pub remote_update_set_id: String,
+    /// Block until the operation completes (polls progress API).
+    #[arg(long)]
+    pub wait: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct UpdateSetCommitMultipleArgs {
+    /// Comma-separated list of remote Update Set sys_ids.
+    #[arg(long, required = true)]
+    pub ids: String,
+    /// Block until the operation completes (polls progress API).
+    #[arg(long)]
+    pub wait: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct UpdateSetBackOutArgs {
+    /// sys_id of the Update Set to back out (required).
+    #[arg(long, required = true)]
+    pub update_set_id: String,
+    /// Also roll back any application installs included in the set.
+    #[arg(long)]
+    pub rollback_installs: bool,
+    /// Block until the operation completes (polls progress API).
+    #[arg(long)]
+    pub wait: bool,
+}
 
 pub fn create(global: &GlobalFlags, args: UpdateSetCreateArgs) -> Result<()> {
     let profile = build_profile(global)?;
@@ -27,7 +112,7 @@ pub fn create(global: &GlobalFlags, args: UpdateSetCreateArgs) -> Result<()> {
     )?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn retrieve(global: &GlobalFlags, args: UpdateSetRetrieveArgs) -> Result<()> {
@@ -66,11 +151,11 @@ pub fn retrieve(global: &GlobalFlags, args: UpdateSetRetrieveArgs) -> Result<()>
                 &final_result,
                 format_from_flags(global),
             )
-            .map_err(|e| Error::Usage(format!("stdout: {e}")));
+            .map_err(crate::output::map_stdout_err);
         }
     }
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn preview(global: &GlobalFlags, args: UpdateSetIdArg) -> Result<()> {
@@ -96,11 +181,11 @@ pub fn preview(global: &GlobalFlags, args: UpdateSetIdArg) -> Result<()> {
                 &final_result,
                 format_from_flags(global),
             )
-            .map_err(|e| Error::Usage(format!("stdout: {e}")));
+            .map_err(crate::output::map_stdout_err);
         }
     }
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn commit(global: &GlobalFlags, args: UpdateSetIdArg) -> Result<()> {
@@ -126,11 +211,11 @@ pub fn commit(global: &GlobalFlags, args: UpdateSetIdArg) -> Result<()> {
                 &final_result,
                 format_from_flags(global),
             )
-            .map_err(|e| Error::Usage(format!("stdout: {e}")));
+            .map_err(crate::output::map_stdout_err);
         }
     }
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn commit_multiple(global: &GlobalFlags, args: UpdateSetCommitMultipleArgs) -> Result<()> {
@@ -157,11 +242,11 @@ pub fn commit_multiple(global: &GlobalFlags, args: UpdateSetCommitMultipleArgs) 
                 &final_result,
                 format_from_flags(global),
             )
-            .map_err(|e| Error::Usage(format!("stdout: {e}")));
+            .map_err(crate::output::map_stdout_err);
         }
     }
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn back_out(global: &GlobalFlags, args: UpdateSetBackOutArgs) -> Result<()> {
@@ -191,9 +276,9 @@ pub fn back_out(global: &GlobalFlags, args: UpdateSetBackOutArgs) -> Result<()> 
                 &final_result,
                 format_from_flags(global),
             )
-            .map_err(|e| Error::Usage(format!("stdout: {e}")));
+            .map_err(crate::output::map_stdout_err);
         }
     }
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }

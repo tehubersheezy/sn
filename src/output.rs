@@ -1,7 +1,7 @@
-use crate::error::Error;
+use crate::error::{Error, Result};
 use is_terminal::IsTerminal;
 use serde_json::Value;
-use std::io::{self, Write};
+use std::io::{self, ErrorKind, Write};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Format {
@@ -57,6 +57,35 @@ pub fn emit_jsonl<W: Write, I: IntoIterator<Item = Value>>(mut w: W, iter: I) ->
 pub fn emit_error<W: Write>(mut w: W, err: &Error) -> io::Result<()> {
     serde_json::to_writer(&mut w, &err.to_stderr_json())?;
     w.write_all(b"\n")
+}
+
+/// Map an I/O error from writing to stdout into the right `Error` variant.
+/// `BrokenPipe` becomes `Error::BrokenPipe` (silent exit 0); everything else
+/// is a transport failure (exit 3), not a usage error.
+pub fn map_stdout_err(e: io::Error) -> Error {
+    if e.kind() == ErrorKind::BrokenPipe {
+        Error::BrokenPipe
+    } else {
+        Error::Transport(format!("stdout: {e}"))
+    }
+}
+
+/// Write a value to stdout, handling broken pipes cleanly.
+pub fn write_value(value: &Value, fmt: ResolvedFormat) -> Result<()> {
+    emit_value(io::stdout().lock(), value, fmt).map_err(map_stdout_err)
+}
+
+/// Write a single JSON record + newline to a writer, mapping errors consistently.
+/// Broken pipes become `Error::BrokenPipe`; other I/O becomes `Error::Transport`.
+pub fn write_jsonl_line<W: Write>(mut w: W, v: &Value) -> Result<()> {
+    serde_json::to_writer(&mut w, v).map_err(|e| {
+        if e.is_io() {
+            Error::BrokenPipe
+        } else {
+            Error::Transport(format!("serialize: {e}"))
+        }
+    })?;
+    w.write_all(b"\n").map_err(map_stdout_err)
 }
 
 #[cfg(test)]

@@ -1,12 +1,20 @@
-use crate::cli::ProfileSub;
 use crate::config::{
     config_path, credentials_path, load_config_from, load_credentials_from, save_config_to,
     save_credentials_to, ProfileConfig,
 };
 use crate::error::{Error, Result};
 use crate::output::{emit_value, Format};
+use clap::Subcommand;
 use serde_json::json;
 use std::io;
+
+#[derive(Subcommand, Debug)]
+pub enum ProfileSub {
+    List,
+    Show { name: Option<String> },
+    Remove { name: String },
+    Use { name: String },
+}
 
 pub fn run(sub: ProfileSub) -> Result<()> {
     match sub {
@@ -21,7 +29,7 @@ fn list() -> Result<()> {
     let cfg = load_config_from(&config_path()?)?;
     let names: Vec<&String> = cfg.profiles.keys().collect();
     emit_value(io::stdout().lock(), &json!(names), Format::Auto.resolve())
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 fn show(name: Option<String>) -> Result<()> {
@@ -38,7 +46,7 @@ fn show(name: Option<String>) -> Result<()> {
         &json!({"name": name, "instance": p.instance}),
         Format::Auto.resolve(),
     )
-    .map_err(|e| Error::Usage(format!("stdout: {e}")))
+    .map_err(crate::output::map_stdout_err)
 }
 
 fn remove(name: String) -> Result<()> {

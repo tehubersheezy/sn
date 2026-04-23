@@ -1,8 +1,76 @@
 use crate::cli::table::{build_client, build_profile, format_from_flags, unwrap_or_raw};
-use crate::cli::{AppInstallArgs, AppPublishArgs, AppRollbackArgs, GlobalFlags};
+use crate::cli::GlobalFlags;
 use crate::error::{Error, Result};
 use crate::output::emit_value;
+use clap::Subcommand;
 use std::io;
+
+#[derive(Subcommand, Debug)]
+pub enum AppSub {
+    /// Install an application from the app repository.
+    Install(AppInstallArgs),
+    /// Publish an application to the app repository.
+    Publish(AppPublishArgs),
+    /// Roll back an application to a previous version.
+    Rollback(AppRollbackArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct AppInstallArgs {
+    /// sys_id of the application.
+    #[arg(long)]
+    pub sys_id: Option<String>,
+    /// Application scope (e.g. `x_acme_myapp`).
+    #[arg(long)]
+    pub scope: Option<String>,
+    /// Version to install.
+    #[arg(long)]
+    pub version: Option<String>,
+    /// Automatically upgrade the base application if needed.
+    #[arg(long)]
+    pub auto_upgrade_base_app: bool,
+    /// Version of the base application to use.
+    #[arg(long)]
+    pub base_app_version: Option<String>,
+    /// Block until the operation completes (polls progress API).
+    #[arg(long)]
+    pub wait: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct AppPublishArgs {
+    /// sys_id of the application.
+    #[arg(long)]
+    pub sys_id: Option<String>,
+    /// Application scope (e.g. `x_acme_myapp`).
+    #[arg(long)]
+    pub scope: Option<String>,
+    /// Version to publish.
+    #[arg(long)]
+    pub version: Option<String>,
+    /// Developer notes for this publish.
+    #[arg(long)]
+    pub dev_notes: Option<String>,
+    /// Block until the operation completes (polls progress API).
+    #[arg(long)]
+    pub wait: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct AppRollbackArgs {
+    /// sys_id of the application.
+    #[arg(long)]
+    pub sys_id: Option<String>,
+    /// Application scope (e.g. `x_acme_myapp`).
+    #[arg(long)]
+    pub scope: Option<String>,
+    /// Version to roll back to (required).
+    #[arg(long, required = true)]
+    pub version: String,
+    /// Block until the operation completes (polls progress API).
+    #[arg(long)]
+    pub wait: bool,
+}
 
 pub fn install(global: &GlobalFlags, args: AppInstallArgs) -> Result<()> {
     if args.sys_id.is_none() && args.scope.is_none() {
@@ -48,11 +116,11 @@ pub fn install(global: &GlobalFlags, args: AppInstallArgs) -> Result<()> {
                 &final_result,
                 format_from_flags(global),
             )
-            .map_err(|e| Error::Usage(format!("stdout: {e}")));
+            .map_err(crate::output::map_stdout_err);
         }
     }
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn publish(global: &GlobalFlags, args: AppPublishArgs) -> Result<()> {
@@ -96,11 +164,11 @@ pub fn publish(global: &GlobalFlags, args: AppPublishArgs) -> Result<()> {
                 &final_result,
                 format_from_flags(global),
             )
-            .map_err(|e| Error::Usage(format!("stdout: {e}")));
+            .map_err(crate::output::map_stdout_err);
         }
     }
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn rollback(global: &GlobalFlags, args: AppRollbackArgs) -> Result<()> {
@@ -139,9 +207,9 @@ pub fn rollback(global: &GlobalFlags, args: AppRollbackArgs) -> Result<()> {
                 &final_result,
                 format_from_flags(global),
             )
-            .map_err(|e| Error::Usage(format!("stdout: {e}")));
+            .map_err(crate::output::map_stdout_err);
         }
     }
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }

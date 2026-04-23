@@ -1,9 +1,47 @@
 use crate::body::{build_body, BodyInput};
 use crate::cli::table::{build_client, build_profile, format_from_flags, unwrap_or_raw};
-use crate::cli::{GlobalFlags, IdentifyArgs, IdentifyEnhancedArgs};
-use crate::error::{Error, Result};
+use crate::cli::GlobalFlags;
+use crate::error::Result;
 use crate::output::emit_value;
+use clap::Subcommand;
 use std::io;
+
+#[derive(Subcommand, Debug)]
+pub enum IdentifySub {
+    /// Create or update a CI (POST /api/now/identifyreconcile).
+    CreateUpdate(IdentifyArgs),
+    /// Identify a CI without modifying (POST /api/now/identifyreconcile/query).
+    Query(IdentifyArgs),
+    /// Create or update with enhanced options.
+    CreateUpdateEnhanced(IdentifyEnhancedArgs),
+    /// Identify with enhanced options.
+    QueryEnhanced(IdentifyEnhancedArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct IdentifyArgs {
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+    /// Data source identifier.
+    #[arg(long)]
+    pub data_source: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct IdentifyEnhancedArgs {
+    #[arg(long, conflicts_with = "field")]
+    pub data: Option<String>,
+    #[arg(long = "field", conflicts_with = "data")]
+    pub field: Vec<String>,
+    /// Data source identifier.
+    #[arg(long)]
+    pub data_source: Option<String>,
+    /// Comma-separated key:value options (e.g. `partial_payload:true,partial_commits:true`).
+    #[arg(long)]
+    pub options: Option<String>,
+}
 
 pub fn create_update(global: &GlobalFlags, args: IdentifyArgs) -> Result<()> {
     let profile = build_profile(global)?;
@@ -23,7 +61,7 @@ pub fn create_update(global: &GlobalFlags, args: IdentifyArgs) -> Result<()> {
     let resp = client.post("/api/now/identifyreconcile", &query, &body)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn query(global: &GlobalFlags, args: IdentifyArgs) -> Result<()> {
@@ -44,7 +82,7 @@ pub fn query(global: &GlobalFlags, args: IdentifyArgs) -> Result<()> {
     let resp = client.post("/api/now/identifyreconcile/query", &query_params, &body)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn create_update_enhanced(global: &GlobalFlags, args: IdentifyEnhancedArgs) -> Result<()> {
@@ -68,7 +106,7 @@ pub fn create_update_enhanced(global: &GlobalFlags, args: IdentifyEnhancedArgs) 
     let resp = client.post("/api/now/identifyreconcile/enhanced", &query, &body)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
 
 pub fn query_enhanced(global: &GlobalFlags, args: IdentifyEnhancedArgs) -> Result<()> {
@@ -92,5 +130,5 @@ pub fn query_enhanced(global: &GlobalFlags, args: IdentifyEnhancedArgs) -> Resul
     let resp = client.post("/api/now/identifyreconcile/queryEnhanced", &query, &body)?;
     let out = unwrap_or_raw(resp, global.output);
     emit_value(io::stdout().lock(), &out, format_from_flags(global))
-        .map_err(|e| Error::Usage(format!("stdout: {e}")))
+        .map_err(crate::output::map_stdout_err)
 }
