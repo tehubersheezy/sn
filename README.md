@@ -62,7 +62,7 @@ sn init --profile dev  --instance dev.service-now.com  --username admin
 Select a profile per command or set a default:
 
 ```bash
-sn --profile prod table list incident --page-size 5
+sn --profile prod table list incident --setlimit 5
 sn profile use prod                  # set as default
 SN_PROFILE=dev sn table list change_request   # env override
 ```
@@ -85,7 +85,7 @@ sn table list incident
 sn table list incident \
   --query "active=true^priority=1" \
   --fields "number,short_description,state" \
-  --page-size 10
+  --setlimit 10
 
 # Get a single record
 sn table get incident <sys_id>
@@ -293,7 +293,7 @@ Every ServiceNow `sysparm_*` parameter has both a friendly name and a raw alias:
 |---|---|---|
 | `--query` | `--sysparm-query` | Encoded query string |
 | `--fields` | `--sysparm-fields` | Comma-separated field list |
-| `--page-size` | `--limit`, `--sysparm-limit` | Records per page (default 1000) |
+| `--setlimit` | `--limit`, `--sysparm-limit`, `--page-size` | Max records returned (default 1000) |
 | `--offset` | `--sysparm-offset` | Starting offset |
 | `--display-value` | `--sysparm-display-value` | `true`, `false`, `all` |
 | `--exclude-reference-link` | `--sysparm-exclude-reference-link` | Boolean |
@@ -318,7 +318,7 @@ Environment variables override profile values:
 SN_INSTANCE=https://myco.service-now.com \
 SN_USERNAME=api-user \
 SN_PASSWORD=secret \
-  sn table list incident --page-size 1
+  sn table list incident --setlimit 1
 ```
 
 ## Debugging

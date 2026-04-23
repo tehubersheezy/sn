@@ -24,7 +24,7 @@ async fn list_default_unwraps_result() {
             .env("SN_INSTANCE", &server_uri)
             .env("SN_USERNAME", "u")
             .env("SN_PASSWORD", "p")
-            .args(["table", "list", "incident", "--page-size", "5", "--compact"])
+            .args(["table", "list", "incident", "--setlimit", "5", "--compact"])
             .assert()
             .success();
         let stdout = String::from_utf8(out.get_output().stdout.clone()).unwrap();

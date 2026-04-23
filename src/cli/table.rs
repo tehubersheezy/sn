@@ -24,7 +24,7 @@ pub fn list(global: &GlobalFlags, args: TableListArgs) -> Result<()> {
         let q = ListQuery {
             query: args.query.clone(),
             fields: args.fields.clone(),
-            page_size: Some(args.page_size),
+            page_size: Some(args.setlimit),
             offset: None, // ignored with --all
             display_value: args.display_value.map(Into::into),
             exclude_reference_link: bool_opt(args.exclude_reference_link),
@@ -70,7 +70,7 @@ pub fn list(global: &GlobalFlags, args: TableListArgs) -> Result<()> {
     let q = ListQuery {
         query: args.query,
         fields: args.fields,
-        page_size: Some(args.page_size),
+        page_size: Some(args.setlimit),
         offset: args.offset,
         display_value: args.display_value.map(Into::into),
         exclude_reference_link: bool_opt(args.exclude_reference_link),

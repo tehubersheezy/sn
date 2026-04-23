@@ -38,7 +38,7 @@ async fn paginates_following_link_header() {
             .env("SN_INSTANCE", &server_uri)
             .env("SN_USERNAME", "u")
             .env("SN_PASSWORD", "p")
-            .args(["table", "list", "incident", "--page-size", "2", "--all"])
+            .args(["table", "list", "incident", "--setlimit", "2", "--all"])
             .assert()
             .success();
         let stdout = String::from_utf8(out.get_output().stdout.clone()).unwrap();

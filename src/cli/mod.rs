@@ -176,9 +176,15 @@ pub struct TableListArgs {
     /// Comma-separated fields to return.
     #[arg(long, alias = "sysparm-fields")]
     pub fields: Option<String>,
-    /// Records per API call (default 1000).
-    #[arg(long, alias = "limit", alias = "sysparm-limit", default_value_t = 1000)]
-    pub page_size: u32,
+    /// Maximum records returned (default 1000). Maps to sysparm_limit.
+    #[arg(
+        long,
+        alias = "limit",
+        alias = "sysparm-limit",
+        alias = "page-size",
+        default_value_t = 1000
+    )]
+    pub setlimit: u32,
     /// Starting offset for manual pagination (ignored with --all).
     #[arg(long, alias = "sysparm-offset")]
     pub offset: Option<u32>,

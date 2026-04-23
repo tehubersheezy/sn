@@ -35,6 +35,13 @@ pub struct ClientBuilder {
     timeout: Duration,
     user_agent: String,
     retry: RetryPolicy,
+    proxy: Option<String>,
+    no_proxy: Option<String>,
+    insecure: bool,
+    ca_cert: Option<String>,
+    proxy_ca_cert: Option<String>,
+    proxy_username: Option<String>,
+    proxy_password: Option<String>,
 }
 
 impl Default for ClientBuilder {
@@ -43,6 +50,13 @@ impl Default for ClientBuilder {
             timeout: Duration::from_secs(30),
             user_agent: format!("sn/{}", env!("CARGO_PKG_VERSION")),
             retry: RetryPolicy::default(),
+            proxy: None,
+            no_proxy: None,
+            insecure: false,
+            ca_cert: None,
+            proxy_ca_cert: None,
+            proxy_username: None,
+            proxy_password: None,
         }
     }
 }
@@ -58,15 +72,82 @@ impl ClientBuilder {
         self
     }
 
+    pub fn proxy(mut self, url: Option<String>) -> Self {
+        self.proxy = url;
+        self
+    }
+
+    pub fn no_proxy(mut self, hosts: Option<String>) -> Self {
+        self.no_proxy = hosts;
+        self
+    }
+
+    pub fn insecure(mut self, yes: bool) -> Self {
+        self.insecure = yes;
+        self
+    }
+
+    pub fn ca_cert(mut self, path: Option<String>) -> Self {
+        self.ca_cert = path;
+        self
+    }
+
+    pub fn proxy_ca_cert(mut self, path: Option<String>) -> Self {
+        self.proxy_ca_cert = path;
+        self
+    }
+
+    pub fn proxy_auth(mut self, username: Option<String>, password: Option<String>) -> Self {
+        self.proxy_username = username;
+        self.proxy_password = password;
+        self
+    }
+
     pub fn build(self, profile: &ResolvedProfile) -> Result<Client> {
         let mut headers = HeaderMap::new();
         headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
         headers.insert(USER_AGENT, HeaderValue::from_str(&self.user_agent).unwrap());
-        let http = ReqwestClient::builder()
+
+        let mut builder = ReqwestClient::builder()
             .timeout(self.timeout)
-            .default_headers(headers)
+            .default_headers(headers);
+
+        if let Some(ref proxy_url) = self.proxy {
+            let mut proxy = reqwest::Proxy::all(proxy_url)
+                .map_err(|e| Error::Config(format!("invalid proxy URL '{proxy_url}': {e}")))?;
+            if let (Some(ref u), Some(ref p)) = (&self.proxy_username, &self.proxy_password) {
+                proxy = proxy.basic_auth(u, p);
+            }
+            if let Some(ref hosts) = self.no_proxy {
+                proxy = proxy.no_proxy(reqwest::NoProxy::from_string(hosts));
+            }
+            builder = builder.proxy(proxy);
+        }
+
+        if self.insecure {
+            builder = builder.danger_accept_invalid_certs(true);
+        }
+
+        if let Some(ref path) = self.ca_cert {
+            let pem = std::fs::read(path)
+                .map_err(|e| Error::Config(format!("read CA cert '{}': {e}", path)))?;
+            let cert = reqwest::Certificate::from_pem(&pem)
+                .map_err(|e| Error::Config(format!("parse CA cert '{}': {e}", path)))?;
+            builder = builder.add_root_certificate(cert);
+        }
+
+        if let Some(ref path) = self.proxy_ca_cert {
+            let pem = std::fs::read(path)
+                .map_err(|e| Error::Config(format!("read proxy CA cert '{}': {e}", path)))?;
+            let cert = reqwest::Certificate::from_pem(&pem)
+                .map_err(|e| Error::Config(format!("parse proxy CA cert '{}': {e}", path)))?;
+            builder = builder.add_root_certificate(cert);
+        }
+
+        let http = builder
             .build()
             .map_err(|e| Error::Transport(format!("build client: {e}")))?;
+
         let base_url = normalize_base_url(&profile.instance);
         Ok(Client {
             http,

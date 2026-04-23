@@ -271,10 +271,10 @@ instance.)
 ### Simple list with a cap
 
 ```bash
-sn table list incident --page-size 5
+sn table list incident --setlimit 5
 ```
 
-(`--limit` is accepted as an alias for `--page-size`, matching the
+(`--limit` is accepted as an alias for `--setlimit`, matching the
 ServiceNow docs for `sysparm_limit`. Default is 1000 records per page;
 override any time.)
 ```json
@@ -304,7 +304,7 @@ override any time.)
 sn table list incident \
   --query "active=true^priority=1" \
   --fields "number,short_description,state" \
-  --page-size 10
+  --setlimit 10
 ```
 ```json
 [
@@ -401,7 +401,7 @@ sn table list incident --query "active=true" --all --max-records 1000
 ```
 
 Internal paging follows the `Link: rel="next"` header ServiceNow emits.
-`--page-size` controls the per-API-call batch size (default 1000), and
+`--setlimit` controls the per-API-call batch size (default 1000), and
 `--offset` is ignored in `--all` mode since pagination walks the full
 result set from the start.
 
@@ -558,7 +558,7 @@ whichever name you remember; both work in this table.
 |---|---|---|---|
 | `--query <EQ>` | `sysparm_query` | list | Encoded query string |
 | `--fields <csv>` | `sysparm_fields` | list, get, create, update, replace | Comma-separated columns to return |
-| `--page-size <N>` | `sysparm_limit` | list | Per-page/result-cap; default 1000. `--limit` is an accepted alias. |
+| `--setlimit <N>` | `sysparm_limit` | list | Max records returned; default 1000. Aliases: `--limit`, `--page-size`, `--sysparm-limit`. |
 | `--offset <N>` | `sysparm_offset` | list | Page offset |
 | `--display-value <false\|true\|all>` | `sysparm_display_value` | list, get, create, update, replace | See display values above |
 | `--input-display-value` | `sysparm_input_display_value=true` | create, update, replace | Resolve labels in request body |
@@ -582,7 +582,7 @@ whichever name you remember; both work in this table.
 
 ```bash
 # Manual single-page read — page 3 at size 50
-sn table list incident --page-size 50 --offset 100 --query "active=true"
+sn table list incident --setlimit 50 --offset 100 --query "active=true"
 ```
 
 ```bash
@@ -602,7 +602,7 @@ sn table list incident --query "active=true" --all --array
 
 ```bash
 # Tune per-API batch size for --all (fewer, larger pages)
-sn table list incident --query "active=true" --all --page-size 5000
+sn table list incident --query "active=true" --all --setlimit 5000
 ```
 
 ### Processing JSONL with jq
@@ -1071,9 +1071,9 @@ Things that bite agents repeatedly:
 - **Using `replace` (PUT) when you meant `update` (PATCH).** `replace`
   wipes every field you didn't include. Default to `update` unless you
   explicitly need full-record semantics.
-- **Pulling way more than you need.** `sn` defaults `--page-size` to
+- **Pulling way more than you need.** `sn` defaults `--setlimit` to
   1000, which is much friendlier than SN's native 10000. For quick
-  exploration, drop it lower (`--page-size 5`). For bulk work, prefer
+  exploration, drop it lower (`--setlimit 5`). For bulk work, prefer
   `--all` with `--max-records` as a guard rail.
 - **Mixing `--data` and `--field` on the same command.** The CLI rejects
   this with exit 1. Pick one: `--data` for full JSON payloads, `--field`
@@ -1112,7 +1112,7 @@ sn schema choices TABLE COLUMN
 
 sn table list TABLE
   [--query EQ] [--fields CSV]
-  [--page-size N (default 1000; alias --limit)] [--offset N]
+  [--setlimit N (default 1000; alias --limit)] [--offset N]
   [--display-value false|true|all]
   [--exclude-reference-link]
   [--all [--array] [--max-records N]]

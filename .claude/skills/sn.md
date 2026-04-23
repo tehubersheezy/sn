@@ -19,7 +19,7 @@ sn table create incident --field short_description="x" --field state=2  # 4. wri
 ## CRUD
 
 ```bash
-sn table list incident --query "active=true^priority=1" --fields "number,state" --page-size 10
+sn table list incident --query "active=true^priority=1" --fields "number,state" --setlimit 10
 sn table get incident <sys_id>
 sn table get incident <sys_id> --display-value all    # human-readable choice/reference values
 sn table create incident --field short_description="x" --field urgency=2
@@ -61,7 +61,7 @@ Env overrides: `SN_INSTANCE`, `SN_USERNAME`, `SN_PASSWORD`, `SN_PROFILE`.
 Every `sysparm_*` has a friendly name and raw alias (e.g. `--query` / `--sysparm-query`). Run `sn table list --help` for the full set. Notable:
 
 - `--display-value true|false|all` — resolve choice/reference fields to labels
-- `--page-size N` (default 1000, alias `--limit`) — records per API call
+- `--setlimit N` (default 1000, aliases `--limit`, `--page-size`, `--sysparm-limit`) — max records returned
 - `--input-display-value` — set fields by display value on writes
 - `-v` / `-vv` / `-vvv` — debug logging to stderr (auth always masked)
 
@@ -71,7 +71,7 @@ Every `sysparm_*` has a friendly name and raw alias (e.g. `--query` / `--sysparm
 - Forgetting `--yes` on delete in non-interactive contexts — hangs on stdin.
 - Forgetting `--display-value true` — get cryptic numbers instead of labels.
 - Mixing `--data` and `--field` — mutually exclusive, exits 1.
-- Using `--query` on `get` — only works on `list`; use `list --query "..." --page-size 1` instead.
+- Using `--query` on `get` — only works on `list`; use `list --query "..." --setlimit 1` instead.
 
 ## Aggregate queries
 

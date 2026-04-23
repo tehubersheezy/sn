@@ -84,7 +84,7 @@ Resolved via `directories::ProjectDirs::from("", "", "sn")`:
 
 ### Pagination (--all)
 
-`client.paginate()` returns a `Paginator` iterator that follows `Link: rel="next"` headers. Default output is JSONL (one record per line); `--array` buffers into a JSON array. `--max-records` caps total output. The page size is fixed at whatever `--page-size` sets (default 1000).
+`client.paginate()` returns a `Paginator` iterator that follows `Link: rel="next"` headers. Default output is JSONL (one record per line); `--array` buffers into a JSON array. `--max-records` caps total output. The page size is fixed at whatever `--setlimit` sets (default 1000).
 
 ### Schema endpoints (undocumented)
 
