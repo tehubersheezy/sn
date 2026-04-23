@@ -60,7 +60,7 @@ CICD operations (`app`, `updateset`, `atf`) are async — they return a `progres
 1. `main.rs` parses `Cli` via clap derive, sets observability level, destructures `Cli { global, command }`.
 2. Each command handler receives `&GlobalFlags` and its typed args struct.
 3. `build_profile(&GlobalFlags)` resolves which ServiceNow instance + credentials to use (flag > env > config file precedence).
-4. `Client::builder().retry(policy).build(&profile)?` creates a reqwest blocking client with basic auth.
+4. `build_client(&profile, no_retry, timeout)` creates a reqwest blocking client with basic auth, proxy, and TLS settings.
 5. Query structs (`ListQuery`, etc.) convert friendly flags to `sysparm_*` query pairs.
 6. Responses are unwrapped from `{"result": ...}` by default; `--output raw` preserves the envelope.
 7. Errors always go to stderr as `{"error": {"message", "detail?", "status_code?", "transaction_id?", "sn_error?"}}`.
@@ -72,6 +72,21 @@ CICD operations (`app`, `updateset`, `atf`) are async — they return a `progres
 ### Profile resolution precedence
 
 `--profile` flag > `SN_PROFILE` env > `default_profile` in config.toml > literal "default" profile. Per-field overrides: `SN_INSTANCE`, `SN_USERNAME`, `SN_PASSWORD` override the resolved profile's values.
+
+### Proxy and TLS
+
+Proxy and TLS settings follow the same precedence as profile fields: CLI flag > env var > profile config file.
+
+| CLI flag | Env var | config.toml field | Description |
+|---|---|---|---|
+| `--proxy <URL>` | `SN_PROXY` | `proxy` | HTTP/HTTPS/SOCKS5 proxy URL |
+| `--no-proxy` | — | — | Bypass proxy for this invocation |
+| — | `SN_NO_PROXY` | `no_proxy` | Comma-separated hosts to bypass proxy |
+| `--insecure` | `SN_INSECURE=1` | `insecure` | Disable TLS cert verification |
+| `--ca-cert <PATH>` | `SN_CA_CERT` | `ca_cert` | Custom CA cert for ServiceNow |
+| `--proxy-ca-cert <PATH>` | `SN_PROXY_CA_CERT` | `proxy_ca_cert` | Custom CA cert for proxy |
+
+Proxy authentication is stored in `credentials.toml` per-profile via `proxy_username` and `proxy_password` fields.
 
 ### Config file locations
 
