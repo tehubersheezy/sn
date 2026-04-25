@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.2 (2026-04-25)
+
+### Distribution
+
+- **Homebrew tap.** `sn` is now installable via Homebrew:
+
+  ```bash
+  brew install tehubersheezy/sn/sn
+  ```
+
+  The release workflow auto-publishes the cargo-dist-generated formula
+  to [tehubersheezy/homebrew-sn](https://github.com/tehubersheezy/homebrew-sn)
+  on every tagged release.
+
 ## 0.3.1 (2026-04-24)
 
 ### Documentation
