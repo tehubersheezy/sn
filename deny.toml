@@ -23,6 +23,9 @@ allow = [
     "MPL-2.0",
     "Zlib",
     "CC0-1.0",
+    # webpki-roots uses CDLA-Permissive-2.0 for the Mozilla CA bundle data.
+    # https://cdla.dev/permissive-2-0/ — permissive, similar in spirit to MIT.
+    "CDLA-Permissive-2.0",
 ]
 
 [bans]
