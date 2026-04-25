@@ -57,3 +57,23 @@ By default, `sn`:
 - Stores credentials separately from non-secret config (`credentials.toml`, chmod `0600` on Unix)
 - Sends network traffic only to the configured ServiceNow instance and (optionally) the configured proxy — there is no telemetry or analytics
 - Ships every release artifact built reproducibly via cargo-dist on GitHub-hosted runners
+
+## Verifying Release Artifacts
+
+Every release artifact is signed via [Sigstore](https://www.sigstore.dev/) using GitHub's [build provenance attestations](https://docs.github.com/en/actions/security-guides/using-artifact-attestations-to-establish-provenance-for-builds). The signature is anchored in Sigstore's public Rekor transparency log and proves the artifact was built from this repo, by the release workflow, on a GitHub-hosted runner — without anyone holding a long-lived signing key.
+
+To verify an artifact you downloaded:
+
+```bash
+# requires the GitHub CLI: https://cli.github.com/
+gh attestation verify sn-x86_64-apple-darwin.tar.xz --owner tehubersheezy
+```
+
+A successful verification confirms:
+
+- The artifact's SHA-256 matches what the build workflow produced
+- The build ran in this repo (`tehubersheezy/sn`)
+- The build was triggered by a tag push to `main`
+- The signature is recorded in Sigstore's Rekor transparency log (auditable at <https://search.sigstore.dev/>)
+
+Attestations are available for releases starting with `v0.3.4`.
