@@ -45,12 +45,6 @@ msiexec /i sn-x86_64-pc-windows-msvc.msi /qn
 powershell -ExecutionPolicy ByPass -c "irm https://github.com/tehubersheezy/sn/releases/latest/download/sn-installer.ps1 | iex"
 ```
 
-### Cargo (from source)
-
-```bash
-cargo install sn
-```
-
 ### Pre-built binaries
 
 Download from [Releases](https://github.com/tehubersheezy/sn/releases). Binaries are available for:
