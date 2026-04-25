@@ -3,8 +3,8 @@
 ## Development setup
 
 ```bash
-git clone https://github.com/tehubersheezy/sn.git
-cd sn
+git clone https://github.com/tehubersheezy/servicenow-cli.git
+cd servicenow-cli
 cargo build
 ```
 

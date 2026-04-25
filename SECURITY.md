@@ -17,7 +17,7 @@
 
 Use one of these private channels:
 
-1. **Preferred:** Open a [private security advisory](https://github.com/tehubersheezy/sn/security/advisories/new) on this repo. This gives both sides a private discussion thread and lets us coordinate a fix (and CVE assignment, if warranted) before public disclosure.
+1. **Preferred:** Open a [private security advisory](https://github.com/tehubersheezy/servicenow-cli/security/advisories/new) on this repo. This gives both sides a private discussion thread and lets us coordinate a fix (and CVE assignment, if warranted) before public disclosure.
 2. **Email:** `ibrahimsafah@gmail.com` with subject prefix `[sn-security]`.
 
 When reporting, please include:
@@ -72,7 +72,7 @@ gh attestation verify sn-x86_64-apple-darwin.tar.xz --owner tehubersheezy
 A successful verification confirms:
 
 - The artifact's SHA-256 matches what the build workflow produced
-- The build ran in this repo (`tehubersheezy/sn`)
+- The build ran in this repo (`tehubersheezy/servicenow-cli`)
 - The build was triggered by a tag push to `main`
 - The signature is recorded in Sigstore's Rekor transparency log (auditable at <https://search.sigstore.dev/>)
 

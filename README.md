@@ -1,10 +1,10 @@
 # sn
 
-[![CI](https://github.com/tehubersheezy/sn/actions/workflows/ci.yml/badge.svg)](https://github.com/tehubersheezy/sn/actions/workflows/ci.yml)
-[![Security](https://github.com/tehubersheezy/sn/actions/workflows/security.yml/badge.svg)](https://github.com/tehubersheezy/sn/actions/workflows/security.yml)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/tehubersheezy/sn/badge)](https://scorecard.dev/viewer/?uri=github.com/tehubersheezy/sn)
+[![CI](https://github.com/tehubersheezy/servicenow-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/tehubersheezy/servicenow-cli/actions/workflows/ci.yml)
+[![Security](https://github.com/tehubersheezy/servicenow-cli/actions/workflows/security.yml/badge.svg)](https://github.com/tehubersheezy/servicenow-cli/actions/workflows/security.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/tehubersheezy/servicenow-cli/badge)](https://scorecard.dev/viewer/?uri=github.com/tehubersheezy/servicenow-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Latest release](https://img.shields.io/github/v/release/tehubersheezy/sn?display_name=tag&sort=semver)](https://github.com/tehubersheezy/sn/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/tehubersheezy/servicenow-cli?display_name=tag&sort=semver)](https://github.com/tehubersheezy/servicenow-cli/releases/latest)
 
 A fast, single-binary CLI for ServiceNow. Designed for LLM agents and human operators alike.
 
@@ -29,12 +29,12 @@ brew upgrade sn
 ### Shell installer (macOS / Linux)
 
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/tehubersheezy/sn/releases/latest/download/sn-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/tehubersheezy/servicenow-cli/releases/latest/download/sn-installer.sh | sh
 ```
 
 ### MSI installer (Windows)
 
-Download the appropriate `.msi` from the [latest release](https://github.com/tehubersheezy/sn/releases/latest):
+Download the appropriate `.msi` from the [latest release](https://github.com/tehubersheezy/servicenow-cli/releases/latest):
 
 - `sn-x86_64-pc-windows-msvc.msi` — 64-bit Intel/AMD
 - `sn-aarch64-pc-windows-msvc.msi` — ARM64 (Surface Pro X, Copilot+ PCs)
@@ -48,12 +48,12 @@ msiexec /i sn-x86_64-pc-windows-msvc.msi /qn
 ### PowerShell installer (Windows)
 
 ```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://github.com/tehubersheezy/sn/releases/latest/download/sn-installer.ps1 | iex"
+powershell -ExecutionPolicy ByPass -c "irm https://github.com/tehubersheezy/servicenow-cli/releases/latest/download/sn-installer.ps1 | iex"
 ```
 
 ### Pre-built binaries
 
-Download from [Releases](https://github.com/tehubersheezy/sn/releases). Binaries are available for:
+Download from [Releases](https://github.com/tehubersheezy/servicenow-cli/releases). Binaries are available for:
 
 - Linux (x86_64, ARM64)
 - macOS (Intel, Apple Silicon)

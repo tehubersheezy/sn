@@ -6,10 +6,8 @@ edition = "2021"
 rust-version = "1.75"
 description = "Agent-forward CLI for ServiceNow — Table, Change, CMDB, Attachment, Catalog, Import, CICD, and more"
 license = "MIT"
-repository = "https://github.com/tehubersheezy/sn"
-homepage = "https://github.com/tehubersheezy/sn"
-keywords = ["servicenow", "cli", "api", "cmdb", "itsm"]
-categories = ["command-line-utilities", "web-programming::http-client"]
+repository = "https://github.com/tehubersheezy/servicenow-cli"
+homepage = "https://github.com/tehubersheezy/servicenow-cli"
 default-run = "sn"
 
 [package.metadata.wix]

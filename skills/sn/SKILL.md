@@ -10,7 +10,7 @@ Single-binary CLI wrapping ServiceNow REST APIs: Table, Change Management, Attac
 
 ## Prerequisites
 
-Install `sn` first: `brew install tehubersheezy/tap/sn` or see https://github.com/tehubersheezy/sn
+Install `sn` first: `brew install tehubersheezy/sn/sn` or see https://github.com/tehubersheezy/servicenow-cli
 
 ## Setup
 

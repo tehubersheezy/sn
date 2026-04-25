@@ -5,10 +5,10 @@
   "author": {
     "name": "Abey Ahmad"
   },
-  "homepage": "https://github.com/tehubersheezy/sn",
+  "homepage": "https://github.com/tehubersheezy/servicenow-cli",
   "repository": {
     "type": "git",
-    "url": "https://github.com/tehubersheezy/sn.git"
+    "url": "https://github.com/tehubersheezy/servicenow-cli.git"
   },
   "license": "MIT"
 }
